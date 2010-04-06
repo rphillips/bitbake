@@ -27,6 +27,7 @@ from bb import msg, data, event
 import signal
 import stat
 import fcntl
+from collections import defaultdict
 
 class TaskFailure(Exception):
     """Exception raised when a task in a runqueue fails"""
@@ -168,6 +169,8 @@ class RunQueue:
         self.taskData = taskData
         self.cfgData = cfgData
         self.targets = targets
+        self.bbData = {}
+        self.task_count = defaultdict(lambda: 0)
 
         self.number_tasks = int(bb.data.getVar("BB_NUMBER_THREADS", cfgData, 1) or 1)
         self.multi_provider_whitelist = (bb.data.getVar("MULTI_PROVIDER_WHITELIST", cfgData, 1) or "").split()
@@ -660,6 +663,7 @@ class RunQueue:
         seen_fn = []
         for task in range(len(self.runq_fnid)):
             fn = taskData.fn_index[self.runq_fnid[task]]
+            self.task_count[fn] += 1
             if fn in seen_fn:
                 continue
             seen_fn.append(fn)
@@ -955,6 +959,10 @@ class RunQueue:
 
                 pid, pipein, pipeout = self.fork_off_task(fn, task, taskname)
 
+                self.task_count[fn] -= 1
+                if not self.task_count[fn]:
+                    del self.bbData[fn]
+                    del self.task_count[fn]
                 self.build_pids[pid] = task
                 self.build_pipes[pid] = runQueuePipe(pipein, pipeout, self.cfgData)
                 self.runq_running[task] = 1
@@ -1044,6 +1052,9 @@ class RunQueue:
         sys.stderr.flush()
         try:
             pipein, pipeout = os.pipe()
+            bb_data = self.bbData.get(fn)
+            if not bb_data:
+                bb_data = self.bbData[fn] = self.cooker.bb_cache.loadDataFull(fn, self.cooker.get_file_appends(fn), self.cooker.configuration.data)
             pid = os.fork() 
         except OSError as e: 
             bb.msg.fatal(bb.msg.domain.RunQueue, "fork failed: %d (%s)" % (e.errno, e.strerror))
@@ -1077,10 +1088,8 @@ class RunQueue:
             bb.data.setVar("__RUNQUEUE_DO_NOT_USE_EXTERNALLY", self, self.cooker.configuration.data)
             bb.data.setVar("__RUNQUEUE_DO_NOT_USE_EXTERNALLY2", fn, self.cooker.configuration.data)
             try:
-                the_data = self.cooker.bb_cache.loadDataFull(fn, self.cooker.get_file_appends(fn), self.cooker.configuration.data)
-
                 if not self.cooker.configuration.dry_run:
-                    bb.build.exec_task(taskname, the_data)
+                    bb.build.exec_task(taskname, bb_data)
                 os._exit(0)
 
             except bb.build.EventException as e:
