@@ -19,15 +19,13 @@ BitBake Utility Functions
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import re, fcntl, os, string, stat, shutil, time
+import fcntl, os, stat, shutil, time
 import sys
 import bb
 import errno
 import bb.msg
 from commands import getstatusoutput
-
-# Version comparison
-separators = ".-"
+from distutils.version import LooseVersion as Version
 
 # Context used in better_exec, eval
 _context = {
@@ -36,191 +34,12 @@ _context = {
     "time": time,
 }
 
-def explode_version(s):
-    r = []
-    alpha_regexp = re.compile('^([a-zA-Z]+)(.*)$')
-    numeric_regexp = re.compile('^(\d+)(.*)$')
-    while (s != ''):
-        if s[0] in string.digits:
-            m = numeric_regexp.match(s)
-            r.append(int(m.group(1)))
-            s = m.group(2)
-            continue
-        if s[0] in string.letters:
-            m = alpha_regexp.match(s)
-            r.append(m.group(1))
-            s = m.group(2)
-            continue
-        r.append(s[0])
-        s = s[1:]
-    return r
+def vercmp(alpha, beta):
+    return cmp(tuple(Version(i) for i in alpha),
+               tuple(Version(i) for i in beta))
 
-def vercmp_part(a, b):
-    va = explode_version(a)
-    vb = explode_version(b)
-    sa = False
-    sb = False
-    while True:
-        if va == []:
-            ca = None
-        else:
-            ca = va.pop(0)
-        if vb == []:
-            cb = None
-        else:
-            cb = vb.pop(0)
-        if ca == None and cb == None:
-            return 0
-
-        if isinstance(ca, basestring):
-            sa = ca in separators
-        if isinstance(cb, basestring):
-            sb = cb in separators
-        if sa and not sb:
-            return -1
-        if not sa and sb:
-            return 1
-
-        if ca > cb:
-            return 1
-        if ca < cb:
-            return -1
-
-def vercmp(ta, tb):
-    (ea, va, ra) = ta
-    (eb, vb, rb) = tb
-
-    r = int(ea)-int(eb)
-    if (r == 0):
-        r = vercmp_part(va, vb)
-    if (r == 0):
-        r = vercmp_part(ra, rb)
-    return r
-
-_package_weights_ = {"pre":-2, "p":0, "alpha":-4, "beta":-3, "rc":-1}    # dicts are unordered
-_package_ends_ = ["pre", "p", "alpha", "beta", "rc", "cvs", "bk", "HEAD" ]            # so we need ordered list
-
-def relparse(myver):
-    """Parses the last elements of a version number into a triplet, that can
-    later be compared.
-    """
-
-    number = 0
-    p1 = 0
-    p2 = 0
-    mynewver = myver.split('_')
-    if len(mynewver) == 2:
-        # an _package_weights_
-        number = float(mynewver[0])
-        match = 0
-        for x in _package_ends_:
-            elen = len(x)
-            if mynewver[1][:elen] == x:
-                match = 1
-                p1 = _package_weights_[x]
-                try:
-                    p2 = float(mynewver[1][elen:])
-                except:
-                    p2 = 0
-                break
-        if not match:
-            # normal number or number with letter at end
-            divider = len(myver)-1
-            if myver[divider:] not in "1234567890":
-                # letter at end
-                p1 = ord(myver[divider:])
-                number = float(myver[0:divider])
-            else:
-                number = float(myver)
-    else:
-        # normal number or number with letter at end
-        divider = len(myver)-1
-        if myver[divider:] not in "1234567890":
-            #letter at end
-            p1 = ord(myver[divider:])
-            number = float(myver[0:divider])
-        else:
-            number = float(myver)
-    return [number, p1, p2]
-
-__vercmp_cache__ = {}
-
-def vercmp_string(val1, val2):
-    """This takes two version strings and returns an integer to tell you whether
-    the versions are the same, val1>val2 or val2>val1.
-    """
-
-    # quick short-circuit
-    if val1 == val2:
-        return 0
-    valkey = val1 + " " + val2
-
-    # cache lookup
-    try:
-        return __vercmp_cache__[valkey]
-        try:
-            return - __vercmp_cache__[val2 + " " + val1]
-        except KeyError:
-            pass
-    except KeyError:
-        pass
-
-    # consider 1_p2 vc 1.1
-    # after expansion will become (1_p2,0) vc (1,1)
-    # then 1_p2 is compared with 1 before 0 is compared with 1
-    # to solve the bug we need to convert it to (1,0_p2)
-    # by splitting _prepart part and adding it back _after_expansion
-
-    val1_prepart = val2_prepart = ''
-    if val1.count('_'):
-        val1, val1_prepart = val1.split('_', 1)
-    if val2.count('_'):
-        val2, val2_prepart = val2.split('_', 1)
-
-    # replace '-' by '.'
-    # FIXME: Is it needed? can val1/2 contain '-'?
-
-    val1 = val1.split("-")
-    if len(val1) == 2:
-        val1[0] = val1[0] + "." + val1[1]
-    val2 = val2.split("-")
-    if len(val2) == 2:
-        val2[0] = val2[0] + "." + val2[1]
-
-    val1 = val1[0].split('.')
-    val2 = val2[0].split('.')
-
-    # add back decimal point so that .03 does not become "3" !
-    for x in range(1, len(val1)):
-        if val1[x][0] == '0' :
-            val1[x] = '.' + val1[x]
-    for x in range(1, len(val2)):
-        if val2[x][0] == '0' :
-            val2[x] = '.' + val2[x]
-
-    # extend varion numbers
-    if len(val2) < len(val1):
-        val2.extend(["0"]*(len(val1)-len(val2)))
-    elif len(val1) < len(val2):
-        val1.extend(["0"]*(len(val2)-len(val1)))
-
-    # add back _prepart tails
-    if val1_prepart:
-        val1[-1] += '_' + val1_prepart
-    if val2_prepart:
-        val2[-1] += '_' + val2_prepart
-    # The above code will extend version numbers out so they
-    # have the same number of digits.
-    for x in range(0, len(val1)):
-        cmp1 = relparse(val1[x])
-        cmp2 = relparse(val2[x])
-        for y in range(0, 3):
-            myret = cmp1[y] - cmp2[y]
-            if myret != 0:
-                __vercmp_cache__[valkey] = myret
-                return myret
-    __vercmp_cache__[valkey] = 0
-    return 0
+def vercmp_string(version1, version2):
+    return cmp(Version(version1), Version(version2))
 
 def explode_deps(s):
     """
