@@ -516,7 +516,11 @@ class PythonValue(Value):
         try:
             value = str(self.components)
         except (RecursionError, PythonExpansionError):
-            value = self.value
+            if self.value:
+                value = self.value
+            else:
+                raise
+
         code = compile(value, "<string>", "exec", ast.PyCF_ONLY_AST)
         self.visitor.visit(code)
 
@@ -527,7 +531,7 @@ class PythonValue(Value):
         for var in self.calls:
             try:
                 func_obj = utils.better_eval(var, env)
-                if self.metadata.getVar(var, False):
+                if self.metadata.getVar(var, False) is not None:
                     self.references.add(var)
                 self.function_references.add((var, func_obj))
             except (NameError, AttributeError):
