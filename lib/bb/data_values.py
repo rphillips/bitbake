@@ -468,7 +468,10 @@ class PythonValue(Value):
 
     def parse(self):
         Value.parse(self)
-        value = str(self.components)
+        try:
+            value = str(self.components)
+        except (RecursionError, PythonExpansionError):
+            value = self.value
         code = compile(value, "<string>", "exec", ast.PyCF_ONLY_AST)
         self.visitor.visit(code)
 
