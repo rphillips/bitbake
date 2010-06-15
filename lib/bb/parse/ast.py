@@ -26,6 +26,7 @@ from future_builtins import filter
 import bb, re, string
 from bb import methodpool
 import itertools
+import ast
 
 __word__ = re.compile(r"\S+")
 __parsed_methods__ = bb.methodpool.get_parsed_dict()
@@ -146,12 +147,15 @@ class PythonMethodNode(AstNode):
         # Note we will add root to parsedmethods after having parse
         # 'this' file. This means we will not parse methods from
         # bb classes twice
+        text = '\n'.join(self.body)
         if not bb.methodpool.parsed_module(self.root):
-            text = '\n'.join(self.body)
             bb.methodpool.insert_method(self.root, text, self.fn)
-            bb.data.setVar(self.root, text, data)
-            bb.data.setVarFlag(self.root, "func", True, data)
-            bb.data.setVarFlag(self.root, "python", True, data)
+
+        code = compile(text, self.fn, "exec", ast.PyCF_ONLY_AST)
+        funcname = code.body[0].name
+        bb.data.setVar(funcname, '\n'.join(self.body[1:]), data)
+        bb.data.setVarFlag(funcname, "func", True, data)
+        bb.data.setVarFlag(funcname, "python", True, data)
 
 class MethodFlagsNode(AstNode):
     def __init__(self, key, m):
