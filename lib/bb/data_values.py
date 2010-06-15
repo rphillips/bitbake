@@ -552,6 +552,11 @@ def new_value(variable, metadata):
     if dirs:
         value.references.update(Value(dirs, metadata).references)
 
+    cleandirs = metadata.getVarFlag(variable, "cleandirs")
+    if cleandirs:
+        cleanval = Value(cleandirs, metadata)
+        value.references.update(cleanval.references)
+
     varrefs = metadata.getVarFlag(variable, "varrefs")
     if varrefs:
         refs = Value(varrefs, metadata)
