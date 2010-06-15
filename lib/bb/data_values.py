@@ -603,14 +603,10 @@ def new_value(variable, metadata, path = None):
     else:
         value = Value(strvalue, metadata)
 
-    dirs = metadata.getVarFlag(variable, "dirs")
-    if dirs:
-        value.references.update(Value(dirs, metadata).references)
-
-    cleandirs = metadata.getVarFlag(variable, "cleandirs")
-    if cleandirs:
-        cleanval = Value(cleandirs, metadata)
-        value.references.update(cleanval.references)
+    for flag in ("dirs", "cleandirs", "lockfiles"):
+        flagvalue = metadata.getVarFlag(variable, flag)
+        if flagvalue:
+            value.references.update(Value(flagvalue, metadata).references)
 
     varrefs = metadata.getVarFlag(variable, "varrefs")
     if varrefs:
