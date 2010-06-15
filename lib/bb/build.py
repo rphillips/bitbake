@@ -265,13 +265,19 @@ def exec_func_shell(func, d, runfile, logfile, flags):
 
 def monkey_patch(task, d):
     signature = data_values.Signature(d, keys=(task,))
-    allowed = set(signature.data.iterkeys())
     old_expand = bb.data_smart.DataSmart.expand
     def expand(datastore, value, variable):
         if variable:
+            if bb.data.getVarFlag(variable, "func", datastore) and \
+               not bb.data.getVarFlag(variable, "python", datastore):
+                # The current bitbake code emits all shell functions in case
+                # they call one another, so we don't want to error in that
+                # case.
+                return str(data_values.new_value(variable, datastore))
+
             if signature.is_blacklisted(variable):
-                return str(data_values.new_value(variable, d))
-            elif variable not in allowed:
+                return str(data_values.new_value(variable, datastore))
+            elif variable not in set(signature.data.iterkeys()):
                 raise ValueError("Variable '%s' not captured by the signature for '%s'" %
                                  (variable, task))
         return old_expand(datastore, value, variable)
