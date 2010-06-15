@@ -528,6 +528,8 @@ class PythonValue(Value):
         for var in self.calls:
             try:
                 func_obj = utils.better_eval(var, env)
+                if self.metadata.getVar(var, False):
+                    self.references.add(var)
                 self.function_references.add((var, func_obj))
             except (NameError, AttributeError):
                 pass
@@ -573,7 +575,6 @@ def dedent_python(codestr):
         tokens.append((toknum, tokval))
     return untokenize(tokens)
 
-_value_cache = {}
 def new_value(variable, metadata, path = None):
     """Value creation factory for a variable in the metadata"""
 

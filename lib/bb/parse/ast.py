@@ -149,6 +149,9 @@ class PythonMethodNode(AstNode):
         if not bb.methodpool.parsed_module(self.root):
             text = '\n'.join(self.body)
             bb.methodpool.insert_method(self.root, text, self.fn)
+            bb.data.setVar(self.root, text, data)
+            bb.data.setVarFlag(self.root, "func", True, data)
+            bb.data.setVarFlag(self.root, "python", True, data)
 
 class MethodFlagsNode(AstNode):
     def __init__(self, key, m):
