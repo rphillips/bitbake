@@ -393,7 +393,7 @@ class TestSignatureGeneration(unittest.TestCase):
         self.d = bb.data.init()
         self.d["BB_HASH_BLACKLIST"] = "blacklisted*"
 
-    def test_full_signature(self):
+    def test_basic_signature(self):
         self.d.setVar("alpha", "echo ${TOPDIR}/foo \"$@\"")
         self.d.setVarFlags("alpha", {"func": True, "task": True})
         self.d.setVar("beta", "test -f bar")
@@ -401,13 +401,13 @@ class TestSignatureGeneration(unittest.TestCase):
         self.d.setVar("theta", "alpha baz")
         self.d.setVarFlags("theta", {"func": True, "task": True})
         signature = bb.data_values.Signature(self.d)
-        self.assertEquals(signature.data_string, "{'alpha': ShellValue(['echo ', VariableRef(['TOPDIR']), '/foo \"$@\"']), 'beta': ShellValue(['test -f bar']), 'theta': ShellValue(['alpha baz'])}")
+        self.assertEquals(signature.data_string, "{'alpha': ShellValue(['echo ', '${TOPDIR}', '/foo \"$@\"']), 'beta': ShellValue(['test -f bar']), 'theta': ShellValue(['alpha baz'])}")
 
     def test_signature_blacklisted(self):
         self.d["blacklistedvar"] = "blacklistedvalue"
         self.d["testbl"] = "${@5} foo ${blacklistedvar} bar"
         signature = bb.data_values.Signature(self.d, keys=["testbl"])
-        self.assertEqual(signature.data_string, "{'testbl': Value(['5', ' foo ', '${blacklistedvar}', ' bar'])}")
+        self.assertEqual(signature.data_string, "{'testbl': Value([PythonSnippet(['5']), ' foo ', '${blacklistedvar}', ' bar'])}")
 
     def test_signature_only_blacklisted(self):
         self.d["anotherval"] = "${blacklistedvar}"
@@ -417,17 +417,7 @@ class TestSignatureGeneration(unittest.TestCase):
     def test_signature_undefined(self):
         self.d["someval"] = "${undefinedvar} ${blacklistedvar} meh"
         signature = bb.data_values.Signature(self.d, keys=["someval"])
-        self.assertEquals(signature.data_string, "{'someval': Value([VariableRef(['undefinedvar']), ' ', '${blacklistedvar}', ' meh'])}")
-
-    def test_signature_python_snippet(self):
-        locals = {}
-        self.d.setVar("testvar", "${@x()}")
-        bb.utils.simple_exec("globals()['x'] = lambda: 'alpha'", locals)
-        signature = bb.data_values.Signature(self.d, keys=["testvar"])
-        print(signature.data_string)
-        bb.utils.simple_exec("globals()['x'] = lambda: 'beta'", locals)
-        signature2 = bb.data_values.Signature(self.d, keys=["testvar"])
-        self.assertNotEqual(signature.data, signature2.data)
+        self.assertEquals(signature.data_string, "{'someval': Value([VariableRef(['undefinedvar']), ' ', '${blacklistedvar}', ' meh']), 'undefinedvar': None}")
 
     def test_signature_oe_devshell(self):
         self.d.setVar("do_devshell", "devshell_do_devshell")
