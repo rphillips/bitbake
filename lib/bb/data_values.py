@@ -30,9 +30,7 @@ BLACKLIST = (
     "*DIR",
     "PATH",
     "CWD",
-    "FILESPATH",
     "FILE",
-    "STAMP",
 )
 
 WHITELIST = (
@@ -55,6 +53,7 @@ WHITELIST = (
     "T",
     "B",
     "S",
+    "STAMP",
 )
 
 from pysh.sherrors import ShellSyntaxError
