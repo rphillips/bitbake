@@ -512,14 +512,5 @@ globals()['base_prune_suffix'] = base_prune_suffix
         signature = bb.data_values.Signature(self.d, ("do_something",))
         self.assertEquals(set(signature.data.iterkeys()), set(["do_something", "CFLAGS"]))
 
-    def test_other_shell_funcs(self):
-        self.d.setVar("do_something", "./configure")
-        self.d.setVarFlag("do_something", "func", True)
-        self.d.setVar("do_somethingelse", "make")
-        self.d.setVarFlag("do_somethingelse", "func", True)
-
-        signature = bb.data_values.Signature(self.d, ("do_something",))
-        self.assertEquals(set(signature.data.iterkeys()), set(["do_something", "do_somethingelse"]))
-
 if __name__ == "__main__":
     unittest.main()
