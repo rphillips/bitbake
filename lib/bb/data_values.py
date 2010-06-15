@@ -663,7 +663,9 @@ class Signature(object):
                 return
 
             valstr = self.metadata.getVar(key, False)
-            if valstr is not None:
+            if valstr is None:
+                yield key, valstr
+            else:
                 try:
                     value = self.transform_blacklisted(new_value(key, self.metadata))
                 except (SyntaxError, ShellSyntaxError, NotImplementedError,
