@@ -182,11 +182,9 @@ def emit_var(var, o=sys.__stdout__, d = init(), all=False):
         if all:
             oval = getVar(var, d, 0)
         val = getVar(var, d, 1)
-    except (KeyboardInterrupt, bb.build.FuncFailed):
+    except Exception as exc:
+        bb.msg.error(bb.msg.domain.Data, "Expansion of %s failed: %s" % (var, exc))
         raise
-    except Exception, exc:
-        o.write('# expansion of %s threw %s: %s\n' % (var, exc.__class__.__name__, str(exc)))
-        return 0
 
     if all:
         o.write('# %s=%s\n' % (var, oval))
