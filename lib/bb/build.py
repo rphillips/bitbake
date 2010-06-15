@@ -28,6 +28,7 @@
 from bb import data, event, mkdirhier, utils
 import bb, os, sys
 import bb.utils
+from bb import data_values
 
 # When we execute a python function we'd like certain things
 # in all namespaces, hence we add them to __builtins__
@@ -262,6 +263,24 @@ def exec_func_shell(func, d, runfile, logfile, flags):
 
     raise FuncFailed("function %s failed" % func, logfile)
 
+def monkey_patch(task, d):
+    signature = data_values.Signature(d, keys=(task,))
+    allowed = set(signature.data.iterkeys())
+    old_expand = bb.data_smart.DataSmart.expand
+    def expand(datastore, value, variable):
+        if variable:
+            if signature.is_blacklisted(variable):
+                return str(data_values.new_value(variable, d))
+            elif variable not in allowed:
+                raise ValueError("Variable '%s' not captured by the signature for '%s'" %
+                                 (variable, task))
+        return old_expand(datastore, value, variable)
+
+    expand.orig = old_expand
+    bb.data_smart.DataSmart.expand = expand
+
+def un_monkey_patch(task, d):
+    bb.data_smart.DataSmart.expand = bb.data_smart.DataSmart.expand.orig
 
 def exec_task(task, d):
     """Execute an BB 'task'
@@ -281,9 +300,12 @@ def exec_task(task, d):
         data.setVar('OVERRIDES', 'task-%s:%s' % (task[3:], old_overrides), localdata)
         data.update_data(localdata)
         data.expandKeys(localdata)
+
+        monkey_patch(task, d)
         event.fire(TaskStarted(task, localdata), localdata)
         exec_func(task, localdata)
         event.fire(TaskSucceeded(task, localdata), localdata)
+        un_monkey_patch(task, d)
     except FuncFailed as message:
         # Try to extract the optional logfile
         try:
