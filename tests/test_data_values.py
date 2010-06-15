@@ -388,6 +388,11 @@ class TestPython(unittest.TestCase):
                          set([("testget", self.context["testget"])]))
         del self.context["testget"]
 
+    def test_string_format(self):
+        self.d.setVar("SOMEVAR", "${@'%s.*' % bb.data.expand(bb.data.getVar('STAMP', d), d)}")
+        value = bb.data_values.new_value("SOMEVAR", self.d)
+        self.assertEqual(value.references, set(["STAMP"]))
+
 class TestSignatureGeneration(unittest.TestCase):
     def setUp(self):
         self.d = bb.data.init()
@@ -497,6 +502,24 @@ globals()['base_prune_suffix'] = base_prune_suffix
 
         signature = bb.data_values.Signature(self.d, ("SOMEVAR",))
         self.assertEquals(set(signature.data.iterkeys()), set(["SOMEVAR", "foo", "LIBC"]))
+
+    def test_exported_vars(self):
+        self.d.setVar("do_something", "./configure")
+        self.d.setVarFlag("do_something", "func", True)
+        self.d.setVar("CFLAGS", "-O2")
+        self.d.setVarFlag("CFLAGS", "export", True)
+
+        signature = bb.data_values.Signature(self.d, ("do_something",))
+        self.assertEquals(set(signature.data.iterkeys()), set(["do_something", "CFLAGS"]))
+
+    def test_other_shell_funcs(self):
+        self.d.setVar("do_something", "./configure")
+        self.d.setVarFlag("do_something", "func", True)
+        self.d.setVar("do_somethingelse", "make")
+        self.d.setVarFlag("do_somethingelse", "func", True)
+
+        signature = bb.data_values.Signature(self.d, ("do_something",))
+        self.assertEquals(set(signature.data.iterkeys()), set(["do_something", "do_somethingelse"]))
 
 if __name__ == "__main__":
     unittest.main()
