@@ -11,6 +11,52 @@ from collections import deque
 from pysh import pyshyacc, pyshlex
 from bb import msg, utils
 
+BLACKLIST = (
+    "__*",
+    "_task_deps",
+    "BB_*",
+    "BBFILE_*",
+    "BBFILES",
+    "BBLAYERS",
+    "BBPATH",
+    "BBMASK",
+    "BBPKGS",
+    "BBVERSIONS",
+    "BBINCLUDELOGS",
+    "BBINCLUDELOGS_LINES",
+    "BUILDNAME",
+    "DATE",
+    "TIME",
+    "*DIR",
+    "PATH",
+    "CWD",
+    "FILESPATH",
+    "FILE",
+    "STAMP",
+)
+
+WHITELIST = (
+    "PE",
+    "BPN",
+    "BP",
+    "PN",
+    "PV",
+    "PR",
+    "P",
+    "PF",
+    "DEPENDS",
+    "RPROVIDES",
+    "RPROVIDES_*",
+    "RDEPENDS",
+    "RDEPENDS_*",
+    "RRECOMMENDS",
+    "RRECOMMENDS_*",
+    "OVERRIDES",
+    "T",
+    "B",
+    "S",
+)
+
 from pysh.sherrors import ShellSyntaxError
 
 class RecursionError(RuntimeError):
@@ -129,7 +175,7 @@ class Value(object):
         for item in value.components:
             if isinstance(item, VariableRef):
                 if all(isinstance(x, basestring) for x in item.components):
-                    self.references.add("".join(item.components))
+                    self.references.add(item.components.resolve())
                 else:
                     self.update_references(item)
             elif isinstance(item, Value):
@@ -619,9 +665,11 @@ class Signature(object):
         else:
             blacklist = metadata.getVar("BB_HASH_BLACKLIST", True)
             if blacklist:
-                self.blacklist = blacklist.split()
+                self.blacklist = set(blacklist.split())
             else:
-                self.blacklist = None
+                self.blacklist = set()
+
+        self.blacklist.update(BLACKLIST)
 
     def __repr__(self):
         return "Signature(%s, %s, %s)" % (self.metadata, self.keys, self.blacklist)
@@ -689,7 +737,13 @@ class Signature(object):
                         for other in data_for_hash(ref):
                             yield other
 
-        data = self._data = dict(chain(*[data_for_hash(key) for key in self.keys]))
+        whitelisted = set()
+        for key in self.metadata.keys():
+            if any(fnmatchcase(key, pattern) for pattern in WHITELIST):
+                whitelisted.add(key)
+        dictdata = chain.from_iterable(data_for_hash(key) for key in self.keys)
+        dictdata = chain(dictdata, chain.from_iterable(data_for_hash(key) for key in whitelisted))
+        data = self._data = dict(dictdata)
         return data
 
     def is_blacklisted(self, item):
