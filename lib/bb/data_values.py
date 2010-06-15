@@ -528,12 +528,21 @@ def dedent_python(codestr):
     return untokenize(tokens)
 
 _value_cache = {}
-def new_value(variable, metadata):
+def new_value(variable, metadata, path = None):
     """Value creation factory for a variable in the metadata"""
 
-    strvalue = metadata.getVar(variable, False)
-    if strvalue is None:
-        return "${%s}" % variable
+    if path is None:
+        path = Path()
+    path.append(variable)
+
+    try:
+        strvalue = metadata.getVar(variable, False)
+        if strvalue is None:
+            path.pop()
+            return "${%s}" % variable
+    except Exception as exc:
+        msg.error(None, "Exception raised while handling '%s', path is %s" % (variable, path))
+        raise
 
     if metadata.getVarFlag(variable, "func"):
         if metadata.getVarFlag(variable, "python"):
@@ -566,6 +575,7 @@ def new_value(variable, metadata):
             if any(fnmatchcase(key, pat) for pat in patterns):
                 value.references.add(key)
 
+    path.pop()
     return value
 
 def stable_repr(value):
