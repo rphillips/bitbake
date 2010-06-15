@@ -465,6 +465,39 @@ class TestSignatureGeneration(unittest.TestCase):
         signature = bb.data_values.Signature(self.d, keys=["alpha"])
         self.assertEquals(set(signature.data.keys()), set(["alpha", "beta", "theta"]))
 
+    def test_filespath(self):
+        self.d.setVar("FILESPATH", "${@':'.join([os.path.normpath(os.path.join(fp, p, o)) for fp in d.getVar('FILESPATHBASE', 1).split(':') for p in d.getVar('FILESPATHPKG', 1).split(':') for o in (d.getVar('OVERRIDES', 1) + ':').split(':')])}")
+        self.assertEquals(bb.data_values.new_value("FILESPATH", self.d).references,
+                          set(["FILESPATHBASE", "FILESPATHPKG", "OVERRIDES"]))
+
+    def test_oe_madness(self):
+        prune = """
+def base_prune_suffix(var, suffixes, d):
+    # See if var ends with any of the suffixes listed and
+    # remove it if found
+    for suffix in suffixes:
+        if var.endswith(suffix):
+            return var.replace(suffix, "")
+    return var
+globals()['base_prune_suffix'] = base_prune_suffix
+"""
+        bb.utils.simple_exec(prune, {})
+        self.d.setVar("BPN", "${@base_prune_suffix('${PN}', '${SPECIAL_PKGSUFFIX}'.split(), d)}")
+        self.d.setVar("BP", "${BPN}-${PV}")
+        self.d.setVar("S", "${WORKDIR}/${BP}")
+        self.d.setVar("WORKDIR", "/tmp")
+
+        self.assertEquals(bb.data_values.new_value("BPN", self.d).references,
+                          set(["PN", "SPECIAL_PKGSUFFIX"]))
+        self.assertEquals(bb.data_values.new_value("BP", self.d).references,
+                          set(["BPN", "PV"]))
+        self.assertEquals(bb.data_values.new_value("S", self.d).references,
+                          set(["WORKDIR", "BP"]))
+
+        signature = bb.data_values.Signature(self.d, keys=["S"])
+        self.assertEquals(set(signature.data.keys()), set(["S", "BP", "BPN", "PV", "PN", "SPECIAL_PKGSUFFIX"]))
+
+
 
 class TestOEData(unittest.TestCase):
     import pickle
