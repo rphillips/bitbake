@@ -9,6 +9,7 @@ from fnmatch import fnmatchcase
 from itertools import chain
 from collections import deque
 from pysh import pyshyacc, pyshlex
+from sys import exc_info
 from bb import msg, utils
 
 BLACKLIST = (
@@ -70,15 +71,19 @@ class RecursionError(RuntimeError):
         return string
 
 class PythonExpansionError(Exception):
-    def __init__(self, exception, node, path):
+    def __init__(self, exception, node, path, traceback=None):
         self.exception = exception
         self.node = node
         self.path = path
+        self.traceback = traceback
 
     def __str__(self):
         string = "'%s' while resolving %s" % (self.exception, stable_repr(self.node))
         if self.path:
             string += " via %s" % self.path
+        if self.traceback:
+            from traceback import format_tb
+            string += "\n" + "".join(format_tb(self.traceback, 8))
         return string
 
 
@@ -546,7 +551,7 @@ class PythonSnippet(PythonValue):
         try:
             value = str(utils.better_eval(codeobj, {"d": self.metadata}))
         except Exception, exc:
-            raise PythonExpansionError(exc, self, path)
+            raise PythonExpansionError(exc, self, path, exc_info()[2])
         return Value(value, self.metadata).resolve(path)
 
 
@@ -728,8 +733,7 @@ class Signature(object):
                     value = self.transform_blacklisted(new_value(key, self.metadata))
                 except (SyntaxError, ShellSyntaxError, NotImplementedError,
                         PythonExpansionError, RecursionError), exc:
-                    msg.error(None, "Unable to parse %s, excluding from signature: %s" %
-                                 (key, exc))
+                    msg.error(None, "Unable to parse %s, excluding from signature" % key)
                 else:
                     yield key, value
 
