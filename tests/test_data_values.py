@@ -487,5 +487,16 @@ globals()['base_prune_suffix'] = base_prune_suffix
         signature = bb.data_values.Signature(self.d, keys=["S"])
         self.assertEquals(set(signature.data.keys()), set(["S", "BP", "BPN", "PV", "PN", "SPECIAL_PKGSUFFIX"]))
 
+    def test_methodpool_function(self):
+        self.d.setVar("SOMEVAR", "${@foo(d)}")
+        foostr = "bb.data.getVar('LIBC', True, d)"
+        self.d.setVar("foo", foostr)
+        self.d.setVarFlag("foo", "func", True)
+        self.d.setVarFlag("foo", "python", True)
+        bb.utils.simple_exec("def foo(d):\n    %s\nglobals()['foo'] = foo" % foostr, {})
+
+        signature = bb.data_values.Signature(self.d, ("SOMEVAR",))
+        self.assertEquals(set(signature.data.iterkeys()), set(["SOMEVAR", "foo", "LIBC"]))
+
 if __name__ == "__main__":
     unittest.main()
