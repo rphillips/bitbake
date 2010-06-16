@@ -460,11 +460,6 @@ class TestSignatureGeneration(unittest.TestCase):
         signature = bb.data_values.Signature(self.d, keys=["alpha"])
         self.assertEquals(set(signature.data.keys()), set(["alpha", "beta", "theta"]))
 
-    def test_filespath(self):
-        self.d.setVar("FILESPATH", "${@':'.join([os.path.normpath(os.path.join(fp, p, o)) for fp in d.getVar('FILESPATHBASE', 1).split(':') for p in d.getVar('FILESPATHPKG', 1).split(':') for o in (d.getVar('OVERRIDES', 1) + ':').split(':')])}")
-        self.assertEquals(bb.data_values.new_value("FILESPATH", self.d).references,
-                          set(["FILESPATHBASE", "FILESPATHPKG", "OVERRIDES"]))
-
     def test_oe_madness(self):
         prune = """
 def base_prune_suffix(var, suffixes, d):
@@ -511,6 +506,15 @@ globals()['base_prune_suffix'] = base_prune_suffix
 
         signature = bb.data_values.Signature(self.d, ("do_something",))
         self.assertEquals(set(signature.data.iterkeys()), set(["do_something", "CFLAGS"]))
+
+    def test_other_shell_funcs(self):
+        self.d.setVar("do_something", "./configure")
+        self.d.setVarFlag("do_something", "func", True)
+        self.d.setVar("do_somethingelse", "make")
+        self.d.setVarFlag("do_somethingelse", "func", True)
+
+        signature = bb.data_values.Signature(self.d, ("do_something",))
+        self.assertEquals(set(signature.data.iterkeys()), set(["do_something", "do_somethingelse"]))
 
 if __name__ == "__main__":
     unittest.main()

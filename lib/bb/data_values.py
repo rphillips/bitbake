@@ -270,9 +270,12 @@ class ShellValue(Value):
     def parse(self):
         Value.parse(self)
         try:
-            strvalue = str(self.components)
+            strvalue = Value.resolve(self)
         except (RecursionError, PythonExpansionError):
-            strvalue = self.value
+            if self.value:
+                strvalue = self.value
+            else:
+                raise
 
         self.execs = self.parse_shell(strvalue)
         for var in self.metadata.keys():
@@ -518,7 +521,7 @@ class PythonValue(Value):
     def parse(self):
         Value.parse(self)
         try:
-            value = str(self.components)
+            value = Value.resolve(self)
         except (RecursionError, PythonExpansionError):
             if self.value:
                 value = self.value
@@ -740,12 +743,24 @@ class Signature(object):
                         for other in data_for_hash(ref):
                             yield other
 
-        whitelisted = set()
+        # If this signature includes any shell functions, we need to include
+        # them all, due to how bitbake emits the run scripts for shell
+        # functions at the moment
+        addshellfuncs = False
+        if any(self.metadata.getVarFlag(key, "func") and not self.metadata.getVarFlag(key, "python")
+               for key in self.keys):
+            addshellfuncs = True
+
+        extrakeys = set()
         for key in self.metadata.keys():
             if any(fnmatchcase(key, pattern) for pattern in WHITELIST):
-                whitelisted.add(key)
+                extrakeys.add(key)
+            elif addshellfuncs and \
+                 self.metadata.getVarFlag(key, "func") and not \
+                 self.metadata.getVarFlag(key, "python"):
+                extrakeys.add(key)
         dictdata = chain.from_iterable(data_for_hash(key) for key in self.keys)
-        dictdata = chain(dictdata, chain.from_iterable(data_for_hash(key) for key in whitelisted))
+        dictdata = chain(dictdata, chain.from_iterable(data_for_hash(key) for key in extrakeys))
         data = self._data = dict(dictdata)
         return data
 
