@@ -265,7 +265,6 @@ class ShellValue(Value):
     def __init__(self, value, metadata):
         self.funcdefs = set()
         self.execs = set()
-        self.execs = set()
         Value.__init__(self, value, metadata)
 
     def parse(self):
