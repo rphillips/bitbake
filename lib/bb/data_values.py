@@ -743,24 +743,12 @@ class Signature(object):
                         for other in data_for_hash(ref):
                             yield other
 
-        # If this signature includes any shell functions, we need to include
-        # them all, due to how bitbake emits the run scripts for shell
-        # functions at the moment
-        addshellfuncs = False
-        if any(self.metadata.getVarFlag(key, "func") and not self.metadata.getVarFlag(key, "python")
-               for key in self.keys):
-            addshellfuncs = True
-
-        extrakeys = set()
+        whitelisted = set()
         for key in self.metadata.keys():
             if any(fnmatchcase(key, pattern) for pattern in WHITELIST):
-                extrakeys.add(key)
-            elif addshellfuncs and \
-                 self.metadata.getVarFlag(key, "func") and not \
-                 self.metadata.getVarFlag(key, "python"):
-                extrakeys.add(key)
+                whitelisted.add(key)
         dictdata = chain.from_iterable(data_for_hash(key) for key in self.keys)
-        dictdata = chain(dictdata, chain.from_iterable(data_for_hash(key) for key in extrakeys))
+        dictdata = chain(dictdata, chain.from_iterable(data_for_hash(key) for key in whitelisted))
         data = self._data = dict(dictdata)
         return data
 
