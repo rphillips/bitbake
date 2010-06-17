@@ -78,7 +78,9 @@ class PythonExpansionError(Exception):
         self.traceback = traceback
 
     def __str__(self):
-        string = "'%s' while resolving %s" % (self.exception, stable_repr(self.node))
+        string = "'%s: %s' while resolving %s" % (self.exception.__class__.__name__,
+                                                  self.exception.args[0],
+                                                  stable_repr(self.node))
         if self.path:
             string += " via %s" % self.path
         if self.traceback:
