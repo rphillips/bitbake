@@ -85,7 +85,6 @@ class InvalidTask(TaskBase):
     """Invalid Task"""
 
 # functions
-
 def exec_func(func, d, dirs = None):
     """Execute an BB 'function'"""
 
@@ -267,21 +266,22 @@ def monkey_patch(task, d):
     signature = data_values.Signature(d, keys=(task,))
     old_expand = bb.data_smart.DataSmart.expand
     def expand(datastore, value, variable):
-        if variable:
-            if bb.data.getVarFlag(variable, "func", datastore) and \
-               not bb.data.getVarFlag(variable, "python", datastore):
-                # The current bitbake code emits all shell functions in case
-                # they call one another, so we don't want to error in that
-                # case.
-                return str(data_values.new_value(variable, datastore))
-
-            if signature.is_blacklisted(variable):
-                return str(data_values.new_value(variable, datastore))
+        if variable and not expand.skipcheck:
+            bb.msg.debug(1, bb.msg.domain.Data, "Checking '%s' for '%s'" % (variable, task))
+            if signature.is_blacklisted(variable) or \
+               (bb.data.getVarFlag(variable, "func", datastore) and \
+                not bb.data.getVarFlag(variable, "python", datastore)):
+                try:
+                    expand.skipcheck = True
+                    return str(data_values.new_value(variable, datastore))
+                finally:
+                    expand.skipcheck = False
             elif variable not in set(signature.data.iterkeys()):
                 raise ValueError("Variable '%s' not captured by the signature for '%s'" %
                                  (variable, task))
         return old_expand(datastore, value, variable)
 
+    expand.skipcheck = False
     expand.orig = old_expand
     bb.data_smart.DataSmart.expand = expand
 
@@ -307,11 +307,11 @@ def exec_task(task, d):
         data.update_data(localdata)
         data.expandKeys(localdata)
 
-        monkey_patch(task, d)
         event.fire(TaskStarted(task, localdata), localdata)
+        monkey_patch(task, d)
         exec_func(task, localdata)
-        event.fire(TaskSucceeded(task, localdata), localdata)
         un_monkey_patch(task, d)
+        event.fire(TaskSucceeded(task, localdata), localdata)
     except FuncFailed as message:
         # Try to extract the optional logfile
         try:
