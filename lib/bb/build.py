@@ -266,7 +266,7 @@ def monkey_patch(task, d):
     signature = data_values.Signature(d, keys=(task,))
     old_expand = bb.data_smart.DataSmart.expand
     def expand(datastore, value, variable):
-        if variable and not expand.skipcheck:
+        if variable and not expand.skipcheck and not variable in expand.set:
             bb.msg.debug(1, bb.msg.domain.Data, "Checking '%s' for '%s'" % (variable, task))
             if signature.is_blacklisted(variable) or \
                (bb.data.getVarFlag(variable, "func", datastore) and \
@@ -280,13 +280,22 @@ def monkey_patch(task, d):
                 raise ValueError("Variable '%s' not captured by the signature for '%s'" %
                                  (variable, task))
         return old_expand(datastore, value, variable)
-
-    expand.skipcheck = False
     expand.orig = old_expand
+    expand.set = set()
+    expand.skipcheck = False
+
+    old_setVar = bb.data_smart.DataSmart.setVar
+    def setVar(datastore, variable, value):
+        expand.set.add(variable)
+        old_setVar(datastore, variable, value)
+    setVar.orig = old_setVar
+
     bb.data_smart.DataSmart.expand = expand
+    bb.data_smart.DataSmart.setVar = setVar
 
 def un_monkey_patch(task, d):
     bb.data_smart.DataSmart.expand = bb.data_smart.DataSmart.expand.orig
+    bb.data_smart.DataSmart.setVar = bb.data_smart.DataSmart.setVar.orig
 
 def exec_task(task, d):
     """Execute an BB 'task'
