@@ -65,7 +65,7 @@ class RecursionError(RuntimeError):
         self.path = path
 
     def __str__(self):
-        string = "Recursive variable reference for %s" % self.variable
+        string = "Recursive variable reference for '%s'" % self.variable
         if self.path:
             string += " via %s" % self.path
         return string
@@ -78,9 +78,9 @@ class PythonExpansionError(Exception):
         self.traceback = traceback
 
     def __str__(self):
-        string = "'%s: %s' while resolving %s" % (self.exception.__class__.__name__,
-                                                  self.exception.args[0],
-                                                  stable_repr(self.node))
+        string = "'%s: %s' while resolving '%s'" % (self.exception.__class__.__name__,
+                                                    self.exception.args[0],
+                                                    stable_repr(self.node))
         if self.path:
             string += " via %s" % self.path
         if self.traceback:
@@ -601,6 +601,11 @@ class PythonSnippet(PythonValue):
         codeobj = compile(code.strip(), "<expansion>", "eval")
         try:
             value = str(utils.better_eval(codeobj, {"d": self.metadata}))
+        except RuntimeError as exc:
+            if exc.args[0] == "maximum recursion depth exceeded":
+                raise RecursionError(code, path)
+            else:
+                raise PythonExpansionError(exc, self, path, exc_info()[2])
         except Exception, exc:
             raise PythonExpansionError(exc, self, path, exc_info()[2])
         return Value(value, self.metadata).resolve(path)
@@ -784,7 +789,10 @@ class Signature(object):
                     value = self.transform_blacklisted(new_value(key, self.metadata))
                 except (SyntaxError, ShellSyntaxError, NotImplementedError,
                         PythonExpansionError, RecursionError), exc:
-                    msg.error(None, "Unable to parse %s, excluding from signature" % key)
+                    import traceback
+                    msg.error(msg.domain.Data, "Excluding '%s' from signature: %s" %
+                                               (key, exc.__class__.__name__))
+                    msg.error(msg.domain.Data, traceback.format_exc(limit=8))
                 else:
                     yield key, value
 
