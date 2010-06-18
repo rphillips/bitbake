@@ -536,6 +536,18 @@ class TestVisiting(unittest.TestCase):
         visitor.visit(value)
         self.assertEqual(visitor.references, set(["BAR", "bar value"]))
 
+
+        self.d.setVar("alpha", "foo ${FOO}")
+        value = bb.data_values.new_value("alpha", self.d)
+
+        visitor = References(True)
+        visitor.visit(value)
+        self.assertEqual(visitor.references, set(["FOO", "BAR", "BAZ"]))
+
+        visitor = References(False)
+        visitor.visit(value)
+        self.assertEqual(visitor.references, set(["FOO"]))
+
     def test_transformer(self):
         class Blacklister(bb.data_values.Transformer):
             def __init__(self, blacklist = None):
