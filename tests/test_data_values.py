@@ -335,7 +335,7 @@ class TestPython(unittest.TestCase):
         else:
             import __builtin__
             self.context = __builtin__.__dict__
-        
+
     def test_getvar_reference(self):
         value = bb.data_values.PythonValue("bb.data.getVar('foo', d, True)", self.d)
         self.assertEqual(value.references, set(["foo"]))
@@ -350,7 +350,7 @@ class TestPython(unittest.TestCase):
         for etype in ("func", "task"):
             self.d.setVar("do_something", "echo 'hi mom! ${FOO}'")
             self.d.setVarFlag("do_something", etype, True)
-            value = bb.data_values.PythonValue("bb.build.exec_func('do_something', d)", 
+            value = bb.data_values.PythonValue("bb.build.exec_func('do_something', d)",
                                         self.d)
             self.assertEqual(value.references, set(["do_something"]))
 
@@ -359,13 +359,13 @@ class TestPython(unittest.TestCase):
         self.d.setVar("FOO", "Hello, World!")
         value = bb.data_values.PythonValue("testfunc('${FOO}')", self.d)
         self.assertEqual(value.references, set(["FOO"]))
-        self.assertEqual(value.function_references, 
+        self.assertEqual(value.function_references,
                          set([("testfunc", self.context["testfunc"])]))
         del self.context["testfunc"]
 
     def test_qualified_function_reference(self):
         value = bb.data_values.PythonValue("time.time()", self.d)
-        self.assertEqual(value.function_references, 
+        self.assertEqual(value.function_references,
                          set([("time.time", self.context["time"].time)]))
 
     def test_qualified_function_reference_2(self):
@@ -374,17 +374,17 @@ class TestPython(unittest.TestCase):
                          set([("os.path.dirname", self.context["os"].path.dirname)]))
 
     def test_qualified_function_reference_nested(self):
-        value = bb.data_values.PythonValue("time.strftime('%Y%m%d',time.gmtime())", 
+        value = bb.data_values.PythonValue("time.strftime('%Y%m%d',time.gmtime())",
                                      self.d)
-        self.assertEqual(value.function_references, 
-                         set([("time.strftime", self.context["time"].strftime), 
+        self.assertEqual(value.function_references,
+                         set([("time.strftime", self.context["time"].strftime),
                               ("time.gmtime", self.context["time"].gmtime)]))
 
     def test_function_reference_chained(self):
         self.context["testget"] = lambda: "\tstrip me     "
         value = bb.data_values.PythonSnippet("testget().strip()", self.d)
         value.resolve()
-        self.assertEqual(value.function_references, 
+        self.assertEqual(value.function_references,
                          set([("testget", self.context["testget"])]))
         del self.context["testget"]
 
@@ -440,7 +440,7 @@ class TestSignatureGeneration(unittest.TestCase):
         self.d.setVar("GNOME_TERMCMD", "gnome-terminal --disable-factory -t \"$TERMWINDOWTITLE\"")
         self.d.setVar("TERMCMD", "${GNOME_TERMCMD}")
         signature = bb.data_values.Signature(self.d, keys=["do_devshell"])
-        self.assertEquals(signature.md5.digest(), 
+        self.assertEquals(signature.md5.digest(),
                           'h HM\xea1\x90\xdeB[iV\xc7\xd9@3')
 
     def test_reference_to_reference(self):
@@ -506,6 +506,70 @@ globals()['base_prune_suffix'] = base_prune_suffix
 
         signature = bb.data_values.Signature(self.d, ("do_something",))
         self.assertEquals(set(signature.data.iterkeys()), set(["do_something", "CFLAGS"]))
+
+class TestVisiting(unittest.TestCase):
+    def setUp(self):
+        self.d = bb.data.init()
+        self.d.setVar("FOO", "-${BAR}- ${BAZ}")
+        self.d.setVar("BAR", "bar value")
+        self.d.setVar("BAZ", "baz value")
+        self.d.setVar("REC", "${${BAR}}")
+        self.d.setVar("bar value", "bar value value")
+
+    def test_visitor(self):
+        class References(bb.data_values.Visitor):
+            def __init__(self, crossref=False):
+                self.references = set()
+                bb.data_values.Visitor.__init__(self, crossref)
+
+            def visit_VariableRef(self, node):
+                name = node.components.resolve()
+                self.references.add(name)
+
+        value = bb.data_values.new_value("FOO", self.d)
+        visitor = References(True)
+        visitor.visit(value)
+        self.assertEqual(visitor.references, set(["BAR", "BAZ"]))
+
+        value = bb.data_values.new_value("REC", self.d)
+        visitor = References(True)
+        visitor.visit(value)
+        self.assertEqual(visitor.references, set(["BAR", "bar value"]))
+
+    def test_transformer(self):
+        class Blacklister(bb.data_values.Transformer):
+            def __init__(self, blacklist = None):
+                if blacklist is None:
+                    self.blacklist = set()
+                else:
+                    self.blacklist = set(blacklist)
+                bb.data_values.Transformer.__init__(self, False)
+
+            def visit_VariableRef(self, node):
+                name = node.components.resolve()
+                if name in self.blacklist:
+                    return "${%s}" % name
+                else:
+                    return node
+
+        class Resolver(bb.data_values.Transformer):
+            def __init__(self):
+                bb.data_values.Transformer.__init__(self, True)
+
+            def visit(self, node):
+                node = self.generic_visit(node)
+                if hasattr(node, "resolve"):
+                    return node.resolve()
+                else:
+                    return node
+
+        value = bb.data_values.new_value("FOO", self.d)
+        self.assertEqual(Resolver().visit(value), "-bar value- baz value")
+        blacklisted = Blacklister(["BAZ"]).visit(value)
+        self.assertEqual(bb.data_values.stable_repr(blacklisted),
+                         "Value(['-', VariableRef(['BAR']), '- ', '${BAZ}'])")
+        self.assertEqual(Resolver().visit(blacklisted), "-bar value- ${BAZ}")
+
 
 if __name__ == "__main__":
     unittest.main()

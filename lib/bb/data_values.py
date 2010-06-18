@@ -89,6 +89,53 @@ class PythonExpansionError(Exception):
         return string
 
 
+class Visitor(object):
+    def __init__(self, crossref = False):
+        self.crossref = crossref
+
+    def visit(self, node):
+        classname = node.__class__.__name__
+        self.generic_visit(node)
+        if hasattr(self, "visit_" + classname):
+            getattr(self, "visit_" + classname)(node)
+
+    def generic_visit(self, node):
+        if self.crossref and isinstance(node, VariableRef):
+            self.visit(node.components)
+            name = node.components.resolve()
+            value = new_value(name, node.metadata)
+            self.visit(value)
+        elif isinstance(node, Value):
+            self.visit(node.components)
+        elif isinstance(node, Components):
+            for component in node:
+                self.visit(component)
+
+
+class Transformer(Visitor):
+    def visit(self, node):
+        node = self.generic_visit(node)
+        classname = node.__class__.__name__
+        if hasattr(self, "visit_" + classname):
+            return getattr(self, "visit_" + classname)(node)
+        else:
+            return node
+
+    def generic_visit(self, node):
+        if self.crossref and isinstance(node, VariableRef):
+            name = node.components.resolve()
+            value = new_value(name, node.metadata)
+            return self.visit(value)
+        elif isinstance(node, Value):
+            newcomponents = Components(self.visit(component)
+                                       for component in node.components)
+            if node.components != newcomponents:
+                newvalue = node.__class__(newcomponents, node.metadata)
+                newvalue.references.update(node.references)
+                return newvalue
+        return node
+
+
 class Path(list):
     def __str__(self):
         return " -> ".join(stable_repr(v) for v in self)
