@@ -92,12 +92,15 @@ class PythonExpansionError(Exception):
 class Visitor(object):
     def __init__(self, crossref = False):
         self.crossref = crossref
+        self.path = Path()
 
     def visit(self, node):
         classname = node.__class__.__name__
+        self.path.append(node)
         self.generic_visit(node)
         if hasattr(self, "visit_" + classname):
             getattr(self, "visit_" + classname)(node)
+        self.path.pop()
 
     def generic_visit(self, node):
         if self.crossref and isinstance(node, VariableRef):
@@ -114,12 +117,15 @@ class Visitor(object):
 
 class Transformer(Visitor):
     def visit(self, node):
+        self.path.append(node)
         node = self.generic_visit(node)
         classname = node.__class__.__name__
         if hasattr(self, "visit_" + classname):
-            return getattr(self, "visit_" + classname)(node)
+            result = getattr(self, "visit_" + classname)(node)
         else:
-            return node
+            result = node
+        self.path.pop()
+        return result
 
     def generic_visit(self, node):
         if self.crossref and isinstance(node, VariableRef):

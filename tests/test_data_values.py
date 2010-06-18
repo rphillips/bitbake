@@ -600,6 +600,26 @@ class TestVisiting(unittest.TestCase):
         self.d.setVar("bar value", "bar value value")
         self.assertEqual(resolver.visit(bb.data_values.Value("${${BAR}}!", self.d)), "bar value value!")
 
+    def test_path(self):
+        foovalue = bb.data_values.new_value("FOO", self.d)
+        barvalue = bb.data_values.new_value("BAR", self.d)
+        bazvalue = bb.data_values.new_value("BAZ", self.d)
+        testobj = self
+
+        class PathCheck(bb.data_values.Visitor):
+            def visit_Value(self, node):
+                if node == foovalue:
+                    testobj.assertEqual(list(self.path), [foovalue])
+                elif node == barvalue:
+                    testobj.assertEqual(list(self.path),
+                                        [foovalue, foovalue.components,
+                                         foovalue.components[1], barvalue])
+                elif node == bazvalue:
+                    testobj.assertEqual(list(self.path),
+                                        [foovalue, foovalue.components,
+                                         foovalue.components[3], bazvalue])
+        PathCheck(crossref=True).visit(foovalue)
+
 
 if __name__ == "__main__":
     unittest.main()
