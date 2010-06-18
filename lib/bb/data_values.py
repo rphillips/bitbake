@@ -95,9 +95,11 @@ class Visitor(object):
         self.path = Path()
 
     def visit(self, node):
-        classname = node.__class__.__name__
+        if node in self.path:
+            raise RecursionError(node, self.path)
         self.path.append(node)
         self.generic_visit(node)
+        classname = node.__class__.__name__
         if hasattr(self, "visit_" + classname):
             getattr(self, "visit_" + classname)(node)
         self.path.pop()
@@ -117,6 +119,8 @@ class Visitor(object):
 
 class Transformer(Visitor):
     def visit(self, node):
+        if node in self.path:
+            raise RecursionError(node, self.path)
         self.path.append(node)
         node = self.generic_visit(node)
         classname = node.__class__.__name__
