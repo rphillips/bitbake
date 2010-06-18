@@ -553,22 +553,40 @@ class TestVisiting(unittest.TestCase):
                     return node
 
         class Resolver(bb.data_values.Transformer):
-            def __init__(self):
-                bb.data_values.Transformer.__init__(self, True)
+            def visit_Value(self, node):
+                return "".join(node.components)
 
-            def visit(self, node):
-                node = self.generic_visit(node)
-                if hasattr(node, "resolve"):
-                    return node.resolve()
-                else:
-                    return node
+            visit_PythonValue = visit_Value
+            visit_ShellValue = visit_Value
 
+            def visit_PythonSnippet(self, node):
+                from bb import utils
+                from sys import exc_info
+
+                code = self.visit_PythonValue(node)
+                codeobj = compile(code.strip(), "<expansion>", "eval")
+                try:
+                    value = str(utils.better_eval(codeobj, {"d": node.metadata}))
+                except Exception, exc:
+                    raise bb.data_values.PythonExpansionError(exc, node, None, exc_info()[2])
+                return self.visit(bb.data_values.Value(value, node.metadata))
+
+            def visit_VariableRef(self, node):
+                name = node.components.resolve()
+                value = bb.data_values.new_value(name, node.metadata)
+                return self.visit(value)
+
+        resolver = Resolver()
         value = bb.data_values.new_value("FOO", self.d)
-        self.assertEqual(Resolver().visit(value), "-bar value- baz value")
+        self.assertEqual(resolver.visit(value), "-bar value- baz value")
         blacklisted = Blacklister(["BAZ"]).visit(value)
         self.assertEqual(bb.data_values.stable_repr(blacklisted),
                          "Value(['-', VariableRef(['BAR']), '- ', '${BAZ}'])")
-        self.assertEqual(Resolver().visit(blacklisted), "-bar value- ${BAZ}")
+        self.assertEqual(resolver.visit(blacklisted), "-bar value- ${BAZ}")
+        self.assertEqual(resolver.visit(bb.data_values.PythonSnippet("5 * 3", self.d)), "15")
+        self.assertEqual(resolver.visit(bb.data_values.Value("${@5 * 3}", self.d)), "15")
+        self.d.setVar("bar value", "bar value value")
+        self.assertEqual(resolver.visit(bb.data_values.Value("${${BAR}}!", self.d)), "bar value value!")
 
 
 if __name__ == "__main__":
