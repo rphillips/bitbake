@@ -136,7 +136,10 @@ class Transformer(Visitor):
         return node
 
 
-class Path(list):
+class Path(deque):
+    def __repr__(self):
+        return "Path(%s)" % list(self)
+
     def __str__(self):
         return " -> ".join(stable_repr(v) for v in self)
 
