@@ -151,7 +151,8 @@ class Path(deque):
         return "Path(%s)" % list(self)
 
     def __str__(self):
-        return " -> ".join(stable_repr(v) for v in self)
+        return " ->\n".join("%s%s" % (indent * "  ", stable_repr(element))
+                            for indent, element in enumerate(self))
 
 
 class Components(list):
