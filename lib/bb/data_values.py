@@ -65,9 +65,9 @@ class RecursionError(RuntimeError):
         self.path = path
 
     def __str__(self):
-        string = "Recursive variable reference for '%s'" % self.variable
+        string = "Recursive variable reference for '%s'" % stable_repr(self.variable)
         if self.path:
-            string += " via %s" % self.path
+            string += " via:\n%s" % self.path
         return string
 
 class PythonExpansionError(Exception):
@@ -82,7 +82,7 @@ class PythonExpansionError(Exception):
                                                     self.exception.args[0],
                                                     stable_repr(self.node))
         if self.path:
-            string += " via %s" % self.path
+            string += " via:\n%s" % self.path
         if self.traceback:
             from traceback import format_tb
             string += "\n" + "".join(format_tb(self.traceback, 8))
