@@ -653,11 +653,14 @@ def dedent_python(codestr):
         tokens.append((toknum, tokval))
     return untokenize(tokens)
 
+visitor = Visitor(True)
 def new_value(variable, metadata, path = None):
     """Value creation factory for a variable in the metadata"""
 
     if path is None:
         path = Path()
+    if variable in path:
+        raise RecursionError(variable, path)
     path.append(variable)
 
     try:
@@ -695,6 +698,8 @@ def new_value(variable, metadata, path = None):
         for key in metadata.keys():
             if any(fnmatchcase(key, pat) for pat in patterns):
                 value.references.add(key)
+
+    visitor.visit(value)
 
     path.pop()
     return value
