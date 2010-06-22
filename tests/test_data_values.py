@@ -570,6 +570,17 @@ class TestVisiting(unittest.TestCase):
                                         [foovalue, foovalue.components[3], bazvalue])
         PathCheck(crossref=True).visit(foovalue)
 
+    def test_noncrossref_resolver(self):
+        value = bb.data_values.new_value("FOO", self.d)
+        resolver = bb.data_values.Resolver(False)
+        self.assertEqual(resolver.visit(value), "-${BAR}- ${BAZ}")
+
+    def test_noncrossref_resolver_python(self):
+        self.d.setVar("alpha", "${@5 * 3}")
+        value = bb.data_values.new_value("alpha", self.d)
+        resolver = bb.data_values.Resolver(False)
+        self.assertEqual(resolver.visit(value), "${@5 * 3}")
+
 
 if __name__ == "__main__":
     unittest.main()

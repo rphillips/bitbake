@@ -203,8 +203,8 @@ class Blacklister(Transformer):
 
 
 class Resolver(Transformer):
-    def __init__(self):
-        Transformer.__init__(self, True)
+    def __init__(self, crossref=True):
+        Transformer.__init__(self, crossref)
 
     def visit_Value(self, node):
         return "".join(node.components)
@@ -214,12 +214,18 @@ class Resolver(Transformer):
 
     def visit_PythonSnippet(self, node):
         code = self.visit_PythonValue(node)
+        if not self.crossref:
+            return "${@%s}" % code
+
         codeobj = compile(code.strip(), "<expansion>", "eval")
         try:
             value = str(utils.better_eval(codeobj, {"d": node.metadata}))
         except Exception, exc:
             raise PythonExpansionError(exc, node, None, exc_info()[2])
         return self.visit(Value(value, node.metadata))
+
+    def visit_VariableRef(self, node):
+        return "${%s}" % node.components.resolve()
 
 
 class Path(deque):
