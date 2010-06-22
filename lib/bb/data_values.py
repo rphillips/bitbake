@@ -111,7 +111,8 @@ class Visitor(object):
             value = new_value(name, node.metadata)
             self.visit(value)
         elif isinstance(node, Value):
-            self.visit(node.components)
+            for component in node.components:
+                self.visit(component)
         elif isinstance(node, Components):
             for component in node:
                 self.visit(component)
