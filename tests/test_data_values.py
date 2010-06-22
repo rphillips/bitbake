@@ -108,7 +108,7 @@ class TestExpansions(unittest.TestCase):
         try:
             str(value)
         except bb.data_values.RecursionError, exc:
-            self.assertEqual(exc.variable, "FOO")
+            self.assertTrue(value in exc.path)
             self.assertTrue(bb.data_values.new_value("BAR", self.d) in exc.path)
         else:
             self.fail("RecursionError not raised")
