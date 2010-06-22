@@ -9,11 +9,6 @@
 - Kill the execution of 'tee' for the task log file in build.py
 - Variable reference tracking
 
-  - Rework RecursionError.  We shouldn't care what the *current* node happens
-    to be.  If there's a RecursionError, there's a cycle, and if there's a
-    cycle, there could be any number of points at which we could have entered
-    it.  What matters is the cycle and the nodes that are included in the
-    cycle, not the current node when we happened to spot it.
   - Test moving the parsing out of the constructors and into factory functions
     instead, and move the object caching as decorators of those functions.
   - Start integrating visitor/transformer bits.

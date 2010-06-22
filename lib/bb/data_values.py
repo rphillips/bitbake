@@ -60,15 +60,11 @@ WHITELIST = (
 from pysh.sherrors import ShellSyntaxError
 
 class RecursionError(RuntimeError):
-    def __init__(self, variable, path = None):
-        self.variable = variable
-        self.path = path
+    def __init__(self, cycle = None):
+        self.path = cycle
 
     def __str__(self):
-        string = "Recursive variable reference for '%s'" % stable_repr(self.variable)
-        if self.path:
-            string += " via:\n%s" % self.path
-        return string
+        return str(self.path)
 
 class PythonExpansionError(Exception):
     def __init__(self, exception, node, path, traceback=None):
@@ -96,7 +92,7 @@ class Visitor(object):
 
     def visit(self, node):
         if node in self.path:
-            raise RecursionError(node, self.path)
+            raise RecursionError(self.path)
         self.path.append(node)
         self.generic_visit(node)
         classname = node.__class__.__name__
@@ -121,7 +117,7 @@ class Visitor(object):
 class Transformer(Visitor):
     def visit(self, node):
         if node in self.path:
-            raise RecursionError(node, self.path)
+            raise RecursionError(self.path)
         self.path.append(node)
         node = self.generic_visit(node)
         classname = node.__class__.__name__
@@ -203,7 +199,7 @@ class VariableRef(object):
         name = self.components.resolve(path)
         value = new_value(name, self.metadata)
         if value in path:
-            raise RecursionError(name, path)
+            raise RecursionError(path)
 
         if hasattr(value, "resolve"):
             return value.resolve(path)
@@ -618,7 +614,7 @@ class PythonSnippet(PythonValue):
             value = str(utils.better_eval(codeobj, {"d": self.metadata}))
         except RuntimeError as exc:
             if exc.args[0] == "maximum recursion depth exceeded":
-                raise RecursionError(code, path)
+                raise RecursionError(path)
             else:
                 raise PythonExpansionError(exc, self, path, exc_info()[2])
         except Exception, exc:
@@ -661,7 +657,7 @@ def new_value(variable, metadata, path = None):
     if path is None:
         path = Path()
     if variable in path:
-        raise RecursionError(variable, path)
+        raise RecursionError(path)
     path.append(variable)
 
     try:
