@@ -822,6 +822,11 @@ class Signature(object):
             string = self._data_string = stable_repr(self.data)
         return string
 
+    def is_blacklisted(self, name):
+        for bl in self.blacklist:
+            if fnmatchcase(name, bl):
+                return True
+
     @property
     def data(self):
         """The object containing the data which will be converted to a string and then hashed"""
@@ -829,12 +834,7 @@ class Signature(object):
         if self._data:
             return self._data
 
-        def is_blacklisted(name):
-            for bl in self.blacklist:
-                if fnmatchcase(name, bl):
-                    return True
-
-        blacklister = Blacklister(is_blacklisted)
+        blacklister = Blacklister(self.is_blacklisted)
         seen = set()
         def data_for_hash(key):
             """Returns an iterator over the variable names and their values, including references"""
@@ -842,7 +842,7 @@ class Signature(object):
             if key in seen:
                 return
             seen.add(key)
-            if is_blacklisted(key):
+            if self.is_blacklisted(key):
                 return
 
             valstr = self.metadata.getVar(key, False)
