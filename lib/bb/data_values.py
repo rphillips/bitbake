@@ -203,6 +203,9 @@ class Blacklister(Transformer):
 
 
 class Resolver(Transformer):
+    def __init__(self):
+        Transformer.__init__(self, True)
+
     def visit_Value(self, node):
         return "".join(node.components)
 
@@ -217,11 +220,6 @@ class Resolver(Transformer):
         except Exception, exc:
             raise PythonExpansionError(exc, node, None, exc_info()[2])
         return self.visit(Value(value, node.metadata))
-
-    def visit_VariableRef(self, node):
-        name = node.components.resolve()
-        value = new_value(name, node.metadata)
-        return self.visit(value)
 
 
 class Path(deque):
