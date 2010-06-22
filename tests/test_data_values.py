@@ -612,12 +612,10 @@ class TestVisiting(unittest.TestCase):
                     testobj.assertEqual(list(self.path), [foovalue])
                 elif node == barvalue:
                     testobj.assertEqual(list(self.path),
-                                        [foovalue, foovalue.components,
-                                         foovalue.components[1], barvalue])
+                                        [foovalue, foovalue.components[1], barvalue])
                 elif node == bazvalue:
                     testobj.assertEqual(list(self.path),
-                                        [foovalue, foovalue.components,
-                                         foovalue.components[3], bazvalue])
+                                        [foovalue, foovalue.components[3], bazvalue])
         PathCheck(crossref=True).visit(foovalue)
 
 
