@@ -517,22 +517,13 @@ class TestVisiting(unittest.TestCase):
         self.d.setVar("bar value", "bar value value")
 
     def test_visitor(self):
-        class References(bb.data_values.Visitor):
-            def __init__(self, crossref=False):
-                self.references = set()
-                bb.data_values.Visitor.__init__(self, crossref)
-
-            def visit_VariableRef(self, node):
-                name = node.components.resolve()
-                self.references.add(name)
-
         value = bb.data_values.new_value("FOO", self.d)
-        visitor = References(True)
+        visitor = bb.data_values.References(True)
         visitor.visit(value)
         self.assertEqual(visitor.references, set(["BAR", "BAZ"]))
 
         value = bb.data_values.new_value("REC", self.d)
-        visitor = References(True)
+        visitor = bb.data_values.References(True)
         visitor.visit(value)
         self.assertEqual(visitor.references, set(["BAR", "bar value"]))
 
@@ -540,58 +531,19 @@ class TestVisiting(unittest.TestCase):
         self.d.setVar("alpha", "foo ${FOO}")
         value = bb.data_values.new_value("alpha", self.d)
 
-        visitor = References(True)
+        visitor = bb.data_values.References(True)
         visitor.visit(value)
         self.assertEqual(visitor.references, set(["FOO", "BAR", "BAZ"]))
 
-        visitor = References(False)
+        visitor = bb.data_values.References(False)
         visitor.visit(value)
         self.assertEqual(visitor.references, set(["FOO"]))
 
     def test_transformer(self):
-        class Blacklister(bb.data_values.Transformer):
-            def __init__(self, blacklist = None):
-                if blacklist is None:
-                    self.blacklist = set()
-                else:
-                    self.blacklist = set(blacklist)
-                bb.data_values.Transformer.__init__(self, False)
-
-            def visit_VariableRef(self, node):
-                name = node.components.resolve()
-                if name in self.blacklist:
-                    return "${%s}" % name
-                else:
-                    return node
-
-        class Resolver(bb.data_values.Transformer):
-            def visit_Value(self, node):
-                return "".join(node.components)
-
-            visit_PythonValue = visit_Value
-            visit_ShellValue = visit_Value
-
-            def visit_PythonSnippet(self, node):
-                from bb import utils
-                from sys import exc_info
-
-                code = self.visit_PythonValue(node)
-                codeobj = compile(code.strip(), "<expansion>", "eval")
-                try:
-                    value = str(utils.better_eval(codeobj, {"d": node.metadata}))
-                except Exception, exc:
-                    raise bb.data_values.PythonExpansionError(exc, node, None, exc_info()[2])
-                return self.visit(bb.data_values.Value(value, node.metadata))
-
-            def visit_VariableRef(self, node):
-                name = node.components.resolve()
-                value = bb.data_values.new_value(name, node.metadata)
-                return self.visit(value)
-
-        resolver = Resolver()
+        resolver = bb.data_values.Resolver()
         value = bb.data_values.new_value("FOO", self.d)
         self.assertEqual(resolver.visit(value), "-bar value- baz value")
-        blacklisted = Blacklister(["BAZ"]).visit(value)
+        blacklisted = bb.data_values.Blacklister(["BAZ"]).visit(value)
         self.assertEqual(bb.data_values.stable_repr(blacklisted),
                          "Value(['-', VariableRef(['BAR']), '- ', '${BAZ}'])")
         self.assertEqual(resolver.visit(blacklisted), "-bar value- ${BAZ}")

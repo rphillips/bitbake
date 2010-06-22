@@ -114,6 +114,16 @@ class Visitor(object):
                 self.visit(component)
 
 
+class References(Visitor):
+    def __init__(self, crossref=False):
+        self.references = set()
+        Visitor.__init__(self, crossref)
+
+    def visit_VariableRef(self, node):
+        name = node.components.resolve()
+        self.references.add(name)
+
+
 class Transformer(Visitor):
     def visit(self, node):
         if node in self.path:
@@ -141,6 +151,44 @@ class Transformer(Visitor):
                 newvalue.references.update(node.references)
                 return newvalue
         return node
+
+
+class Blacklister(Transformer):
+    def __init__(self, blacklist = None):
+        if blacklist is None:
+            self.blacklist = set()
+        else:
+            self.blacklist = set(blacklist)
+        Transformer.__init__(self, False)
+
+    def visit_VariableRef(self, node):
+        name = node.components.resolve()
+        if name in self.blacklist:
+            return "${%s}" % name
+        else:
+            return node
+
+
+class Resolver(Transformer):
+    def visit_Value(self, node):
+        return "".join(node.components)
+
+    visit_PythonValue = visit_Value
+    visit_ShellValue = visit_Value
+
+    def visit_PythonSnippet(self, node):
+        code = self.visit_PythonValue(node)
+        codeobj = compile(code.strip(), "<expansion>", "eval")
+        try:
+            value = str(utils.better_eval(codeobj, {"d": node.metadata}))
+        except Exception, exc:
+            raise PythonExpansionError(exc, node, None, exc_info()[2])
+        return self.visit(Value(value, node.metadata))
+
+    def visit_VariableRef(self, node):
+        name = node.components.resolve()
+        value = new_value(name, node.metadata)
+        return self.visit(value)
 
 
 class Path(deque):
