@@ -543,7 +543,7 @@ class TestVisiting(unittest.TestCase):
         resolver = bb.data_values.Resolver()
         value = bb.data_values.new_value("FOO", self.d)
         self.assertEqual(resolver.visit(value), "-bar value- baz value")
-        blacklisted = bb.data_values.Blacklister(["BAZ"]).visit(value)
+        blacklisted = bb.data_values.Blacklister(lambda name: name in ["BAZ"]).visit(value)
         self.assertEqual(bb.data_values.stable_repr(blacklisted),
                          "Value(['-', VariableRef(['BAR']), '- ', '${BAZ}'])")
         self.assertEqual(resolver.visit(blacklisted), "-bar value- ${BAZ}")

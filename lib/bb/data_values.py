@@ -154,16 +154,13 @@ class Transformer(Visitor):
 
 
 class Blacklister(Transformer):
-    def __init__(self, blacklist = None):
-        if blacklist is None:
-            self.blacklist = set()
-        else:
-            self.blacklist = set(blacklist)
+    def __init__(self, is_blacklisted):
+        self.is_blacklisted = is_blacklisted
         Transformer.__init__(self, False)
 
     def visit_VariableRef(self, node):
         name = node.components.resolve()
-        if name in self.blacklist:
+        if self.is_blacklisted(name):
             return "${%s}" % name
         else:
             return node
@@ -832,6 +829,12 @@ class Signature(object):
         if self._data:
             return self._data
 
+        def is_blacklisted(name):
+            for bl in self.blacklist:
+                if fnmatchcase(name, bl):
+                    return True
+
+        blacklister = Blacklister(is_blacklisted)
         seen = set()
         def data_for_hash(key):
             """Returns an iterator over the variable names and their values, including references"""
@@ -839,7 +842,7 @@ class Signature(object):
             if key in seen:
                 return
             seen.add(key)
-            if self.is_blacklisted(key):
+            if is_blacklisted(key):
                 return
 
             valstr = self.metadata.getVar(key, False)
@@ -847,7 +850,7 @@ class Signature(object):
                 yield key, valstr
             else:
                 try:
-                    value = self.transform_blacklisted(new_value(key, self.metadata))
+                    value = blacklister.visit(new_value(key, self.metadata))
                 except (SyntaxError, ShellSyntaxError, NotImplementedError,
                         PythonExpansionError, RecursionError), exc:
                     import traceback
@@ -869,37 +872,3 @@ class Signature(object):
         dictdata = chain(dictdata, chain.from_iterable(data_for_hash(key) for key in whitelisted))
         data = self._data = dict(dictdata)
         return data
-
-    def is_blacklisted(self, item):
-        """Determine if the supplied item is blacklisted"""
-
-        if not self.blacklist:
-            return
-
-        if isinstance(item, basestring):
-            valstr = item
-        elif all(isinstance(c, basestring) for c in item.components):
-            valstr = str(item.components)
-        else:
-            return
-
-        for bl in self.blacklist:
-            if fnmatchcase(valstr, bl):
-                return "${%s}" % valstr
-
-    def transform_blacklisted(self, item):
-        """Transform the supplied item tree, changing all blacklisted objects
-        into their unexpanded forms.
-        """
-
-        if isinstance(item, Value):
-            transformed = Components(self.transform_blacklisted(i) for i in item.components)
-            if transformed != item.components:
-                newitem = item.__class__(transformed, self.metadata)
-                newitem.references.update(item.references)
-                return newitem
-        elif isinstance(item, VariableRef):
-            black = self.is_blacklisted(item)
-            if black:
-                return black
-        return item
