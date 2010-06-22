@@ -101,11 +101,12 @@ class Visitor(object):
         self.path.pop()
 
     def generic_visit(self, node):
-        if self.crossref and isinstance(node, VariableRef):
-            self.visit(node.components)
-            name = node.components.resolve()
-            value = new_value(name, node.metadata)
-            self.visit(value)
+        if isinstance(node, VariableRef):
+            self.generic_visit(node.components)
+            if self.crossref:
+                name = node.components.resolve()
+                value = new_value(name, node.metadata)
+                self.visit(value)
 
         elif isinstance(node, PythonValue):
             for component in node.components:
@@ -175,10 +176,12 @@ class Transformer(Visitor):
         return result
 
     def generic_visit(self, node):
-        if self.crossref and isinstance(node, VariableRef):
-            name = node.components.resolve()
-            value = new_value(name, node.metadata)
-            return self.visit(value)
+        if isinstance(node, VariableRef):
+            components = self.generic_visit(node.components)
+            if self.crossref:
+                name = components.resolve()
+                value = new_value(name, node.metadata)
+                return self.visit(value)
         elif isinstance(node, Value):
             newcomponents = Components(self.visit(component)
                                        for component in node.components)
@@ -186,6 +189,10 @@ class Transformer(Visitor):
                 newvalue = node.__class__(newcomponents, node.metadata)
                 newvalue.references.update(node.references)
                 return newvalue
+        elif isinstance(node, Components):
+            newcomponents = Components(self.visit(component) for component in node)
+            if node != newcomponents:
+                return newcomponents
         return node
 
 
