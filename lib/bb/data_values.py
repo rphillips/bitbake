@@ -106,9 +106,31 @@ class Visitor(object):
             name = node.components.resolve()
             value = new_value(name, node.metadata)
             self.visit(value)
+
+        elif isinstance(node, PythonValue):
+            for component in node.components:
+                self.visit(component)
+
+            if self.crossref:
+                for var in chain(node.calls, node.visitor.var_execs, node.visitor.var_references):
+                    strvalue = node.metadata.getVar(var, False)
+                    if strvalue:
+                        self.visit(new_value(strvalue, node.metadata))
+
+        elif isinstance(node, ShellValue):
+            for component in node.components:
+                self.visit(component)
+
+            if self.crossref:
+                for var in node.execs:
+                    strvalue = node.metadata.getVar(var, False)
+                    if strvalue:
+                        self.visit(new_value(strvalue, node.metadata))
+
         elif isinstance(node, Value):
             for component in node.components:
                 self.visit(component)
+
         elif isinstance(node, Components):
             for component in node:
                 self.visit(component)
@@ -122,6 +144,20 @@ class References(Visitor):
     def visit_VariableRef(self, node):
         name = node.components.resolve()
         self.references.add(name)
+
+    def visit_PythonValue(self, node):
+        self.references.update(node.visitor.var_references)
+        self.references.update(node.visitor.var_execs)
+        for var in node.calls:
+            if node.metadata.getVar(var, False):
+                self.references.add(var)
+
+    visit_PythonSnippet = visit_PythonValue
+
+    def visit_ShellValue(self, node):
+        for var in node.execs:
+            if node.metadata.getVar(var, False):
+                self.references.add(var)
 
 
 class Transformer(Visitor):
