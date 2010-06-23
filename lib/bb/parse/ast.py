@@ -154,6 +154,7 @@ class PythonMethodNode(AstNode):
         code = compile(text, self.fn, "exec", ast.PyCF_ONLY_AST)
         funcname = code.body[0].name
         bb.data.setVar(funcname, '\n'.join(self.body[1:]), data)
+        bb.data.setVarFlag(funcname, "args", code.body[0].args, data)
         bb.data.setVarFlag(funcname, "func", True, data)
         bb.data.setVarFlag(funcname, "python", True, data)
 
