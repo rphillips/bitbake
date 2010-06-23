@@ -264,6 +264,7 @@ def exec_func_shell(func, d, runfile, logfile, flags):
 
 def monkey_patch(task, d):
     signature = data_values.Signature(d, keys=(task,))
+    signature.data
     old_expand = bb.data_smart.DataSmart.expand
     def expand(datastore, value, variable):
         if variable and not expand.skipcheck and not variable in expand.set:
