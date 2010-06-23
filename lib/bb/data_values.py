@@ -178,6 +178,9 @@ class Transformer(Visitor):
     def generic_visit(self, node):
         if isinstance(node, VariableRef):
             components = self.generic_visit(node.components)
+            if not isinstance(components, Components):
+                return components
+
             if self.crossref:
                 name = components.resolve()
                 value = new_value(name, node.metadata)
