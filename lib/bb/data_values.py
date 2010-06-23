@@ -182,6 +182,8 @@ class Transformer(Visitor):
                 name = components.resolve()
                 value = new_value(name, node.metadata)
                 return self.visit(value)
+            elif components != node.components:
+                return VariableRef(components, node.metadata)
         elif isinstance(node, Value):
             newcomponents = Components(self.visit(component)
                                        for component in node.components)
@@ -201,9 +203,15 @@ class Blacklister(Transformer):
         self.is_blacklisted = is_blacklisted
         Transformer.__init__(self, False)
 
+    def generic_visit(self, node):
+        newnode = Transformer.generic_visit(self, node)
+        if node != newnode:
+            newnode.blacklisted = True
+        return newnode
+
     def visit_VariableRef(self, node):
         name = node.components.resolve()
-        if self.is_blacklisted(name):
+        if hasattr(node, "blacklisted") or self.is_blacklisted(name):
             return "${%s}" % name
         else:
             return node

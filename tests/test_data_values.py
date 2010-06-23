@@ -408,6 +408,13 @@ class TestSignatureGeneration(unittest.TestCase):
         signature = bb.data_values.Signature(self.d)
         self.assertEquals(signature.data_string, "{'alpha': ShellValue(['echo ', '${TOPDIR}', '/foo \"$@\"']), 'beta': ShellValue(['test -f bar']), 'theta': ShellValue(['alpha baz'])}")
 
+    def test_blacklist_nested_varref(self):
+        self.d["blacklistedvar"] = "avalue"
+        self.d["avalue"] = "value"
+        self.d["foo"] = "${${blacklistedvar}}"
+        signature = bb.data_values.Signature(self.d, keys=["foo"])
+        self.assertEqual(signature.data_string, "{'foo': Value(['${${blacklistedvar}}'])}")
+
     def test_signature_blacklisted(self):
         self.d["blacklistedvar"] = "blacklistedvalue"
         self.d["testbl"] = "${@5} foo ${blacklistedvar} bar"
