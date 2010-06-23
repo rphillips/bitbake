@@ -11,6 +11,7 @@ from collections import deque
 from pysh import pyshyacc, pyshlex
 from sys import exc_info
 from bb import msg, utils
+from bb.data import expandKeys
 
 BLACKLIST = (
     "__*",
@@ -922,6 +923,8 @@ class Signature(object):
                         for other in data_for_hash(ref):
                             yield other
 
+        self.metadata = self.metadata.createCopy()
+        expandKeys(self.metadata)
         whitelisted = set()
         for key in self.metadata.keys():
             if any(fnmatchcase(key, pattern) for pattern in WHITELIST):
