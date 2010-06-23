@@ -7,6 +7,8 @@
 - Drop os.system usage in favor of direct subprocess usage or a subprocess
   wrapper
 - Kill the execution of 'tee' for the task log file in build.py
+- Ensure that flags are carried across when overrides are applied.  Today only
+  the value goes across, as it doesn't utilize renameVar
 - Variable reference tracking
 
   - Test moving the parsing out of the constructors and into factory functions
