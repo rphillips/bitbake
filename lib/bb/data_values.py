@@ -692,7 +692,7 @@ class PythonValue(Value):
             else:
                 raise
 
-        code = compile(value, "<string>", "exec", ast.PyCF_ONLY_AST)
+        code = compile(value.strip(), "<string>", "exec", ast.PyCF_ONLY_AST)
         self.visitor.visit(code)
 
         self.references.update(self.visitor.var_references)
