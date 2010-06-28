@@ -240,7 +240,7 @@ class Resolver(Transformer):
         try:
             value = str(utils.better_eval(codeobj, {"d": node.metadata}))
         except Exception, exc:
-            raise PythonExpansionError(exc, node, None, exc_info()[2])
+            raise PythonExpansionError(exc, node, self.path, exc_info()[2])
         return self.visit(Value(value, node.metadata))
 
     def visit_VariableRef(self, node):
