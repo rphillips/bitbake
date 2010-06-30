@@ -225,8 +225,11 @@ class Resolver(Transformer):
     def __init__(self, crossref=True):
         Transformer.__init__(self, crossref)
 
+    def visit_Components(self, node):
+        return "".join(node)
+
     def visit_Value(self, node):
-        return "".join(node.components)
+        return self.visit_Components(node.components)
 
     visit_PythonValue = visit_Value
     visit_ShellValue = visit_Value
@@ -244,7 +247,7 @@ class Resolver(Transformer):
         return self.visit(Value(value, node.metadata))
 
     def visit_VariableRef(self, node):
-        return "${%s}" % node.components.resolve()
+        return "${%s}" % self.visit_Value(node)
 
 
 class Path(deque):
