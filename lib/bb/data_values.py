@@ -280,37 +280,6 @@ class Components(list):
         return hash("Components(%s)" % ", ".join(repr(c) for c in self))
 
 
-class VariableRef(object):
-    """Reference to a variable.  The variable name is supplied as a Components
-    object, as we allow nested variable references, so the inside of a
-    reference can be any number of components"""
-
-    def __init__(self, components, metadata):
-        self.components = components
-        self.metadata = metadata
-
-    def __repr__(self):
-        return "VariableRef(%s, %s)" % (repr(self.components),
-                                        repr(self.metadata))
-
-    def __str__(self):
-        return self.resolve()
-
-    def resolve(self, path = None):
-        if path is None:
-            path = Path()
-
-        name = self.components.resolve(path)
-        value = new_value(name, self.metadata)
-        if value in path:
-            raise RecursionError(path)
-
-        if hasattr(value, "resolve"):
-            return value.resolve(path)
-        else:
-            return value
-
-
 class Value(object):
     """Parse a value from the OE metadata into a Components object, held
     internally.  Running str() on this is equivalent to doing the same to its
@@ -415,6 +384,24 @@ class Value(object):
         if current:
             result += current
         self.components = result
+
+
+class VariableRef(Value):
+    """Reference to a variable"""
+
+    def resolve(self, path = None):
+        if path is None:
+            path = Path()
+
+        name = Value.resolve(self, path)
+        value = new_value(name, self.metadata)
+        if value in path:
+            raise RecursionError(path)
+
+        if hasattr(value, "resolve"):
+            return value.resolve(path)
+        else:
+            return value
 
 
 class ShellValue(Value):
