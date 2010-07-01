@@ -366,7 +366,7 @@ class Value(object):
             if token == "${":
                 stack.append(current)
                 current = Components()
-            elif current is not None:
+            elif stack:
                 if token == "}":
                     if hasattr(current[0], "startswith") and \
                        current[0].startswith("@"):
