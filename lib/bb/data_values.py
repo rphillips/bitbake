@@ -244,7 +244,7 @@ class Resolver(Transformer):
             value = str(utils.better_eval(codeobj, {"d": node.metadata}))
         except Exception, exc:
             raise PythonExpansionError(exc, node, self.path, exc_info()[2])
-        return self.visit(Value(value, node.metadata))
+        return self.visit(Value.from_string(value, node.metadata))
 
     def visit_VariableRef(self, node):
         return "${%s}" % self.visit_Value(node)
@@ -292,7 +292,7 @@ class Value(object):
     memory = {}
 
     def __new__(cls, value, metadata):
-        key = (cls, value, id(metadata))
+        key = (cls, tuple(value), id(metadata))
         if key in cls.memory:
             return cls.memory[key]
         else:
@@ -300,15 +300,10 @@ class Value(object):
             return value
 
     def __init__(self, value, metadata):
-        if not isinstance(value, basestring):
-            self.components = Components(value)
-            self.value = None
-        else:
-            self.value = value
-            self.components = Components()
+        self.components = value
         self.metadata = metadata
         self.references = set()
-        self.parse()
+        self.expand()
         self.update_references(self)
 
     def update_references(self, value):
@@ -347,19 +342,19 @@ class Value(object):
         path.pop()
         return resolved
 
-    def parse(self):
-        """Parse a value from the OE metadata into a Components object"""
+    def expand(self):
+        pass
 
-        if self.value is None:
-            return
+    @classmethod
+    def from_string(cls, value, metadata):
+        """Parse a string value from the OE metadata into a Value object"""
 
-        if not isinstance(self.value, basestring) or \
-           "${" not in self.value:
-            self.components.append(self.value)
-            return
+        if not isinstance(value, basestring) or \
+           "${" not in value:
+            return cls(Components([value]), metadata)
 
         EOF = object()
-        tokens = self.variable_ref.split(self.value)
+        tokens = cls.variable_ref.split(value)
         tokens.append(EOF)
         result = Components()
         current = None
@@ -379,9 +374,9 @@ class Value(object):
                     if hasattr(current[0], "startswith") and \
                        current[0].startswith("@"):
                         current[0] = current[0][1:]
-                        value = PythonSnippet(current, self.metadata)
+                        value = PythonSnippet(current, metadata)
                     else:
-                        value = VariableRef(current, self.metadata)
+                        value = VariableRef(current, metadata)
 
                     current = stack.pop()
                     if current is None:
@@ -392,7 +387,7 @@ class Value(object):
                     current.append(token)
             else:
                 result.append(token)
-        self.components = result
+        return cls(result, metadata)
 
 
 class VariableRef(Value):
@@ -427,15 +422,9 @@ class ShellValue(Value):
         self.execs = set()
         Value.__init__(self, value, metadata)
 
-    def parse(self):
-        Value.parse(self)
-        try:
-            strvalue = Value.resolve(self)
-        except (RecursionError, PythonExpansionError):
-            if self.value:
-                strvalue = self.value
-            else:
-                raise
+    def expand(self):
+        Value.expand(self)
+        strvalue = Value.resolve(self)
 
         self.execs = self.parse_shell(strvalue)
         for var in self.metadata.keys():
@@ -644,7 +633,7 @@ class PythonValue(Value):
                     self.warn(node.func, node.args[0])
             elif self.compare_name(self.expands, node.func):
                 if isinstance(node.args[0], ast.Str):
-                    value = Value(node.args[0].s, self.value.metadata)
+                    value = Value.from_string(node.args[0].s, self.value.metadata)
                     self.var_references.update(value.references)
                 elif isinstance(node.args[0], ast.Call) and \
                      self.compare_name(self.getvars, node.args[0].func):
@@ -678,15 +667,9 @@ class PythonValue(Value):
 
         Value.__init__(self, value, metadata)
 
-    def parse(self):
-        Value.parse(self)
-        try:
-            value = Value.resolve(self)
-        except (RecursionError, PythonExpansionError):
-            if self.value:
-                value = self.value
-            else:
-                raise
+    def expand(self):
+        Value.expand(self)
+        value = Value.resolve(self)
 
         code = compile(value.strip(), "<string>", "exec", ast.PyCF_ONLY_AST)
         self.visitor.visit(code)
@@ -719,7 +702,7 @@ class PythonSnippet(PythonValue):
                 raise PythonExpansionError(exc, self, path, exc_info()[2])
         except Exception, exc:
             raise PythonExpansionError(exc, self, path, exc_info()[2])
-        return Value(value, self.metadata).resolve(path)
+        return Value.from_string(value, self.metadata).resolve(path)
 
 
 from tokenize import generate_tokens, untokenize, INDENT, DEDENT
@@ -770,25 +753,25 @@ def new_value(variable, metadata, path = None):
 
     if metadata.getVarFlag(variable, "func"):
         if metadata.getVarFlag(variable, "python"):
-            value = PythonValue(dedent_python(strvalue.expandtabs()), metadata)
+            value = PythonValue.from_string(dedent_python(strvalue.expandtabs()), metadata)
         else:
             try:
-                value = ShellValue(strvalue, metadata)
+                value = ShellValue.from_string(strvalue, metadata)
             except pyshlex.NeedMore:
                 raise RuntimeError("Ran out of input while parsing shell for %s" % variable)
             except ShellSyntaxError, exc:
                 raise RuntimeError("Syntax error parsing shell for %s: %s" % (variable, exc))
     else:
-        value = Value(strvalue, metadata)
+        value = Value.from_string(strvalue, metadata)
 
     for flag in ("dirs", "cleandirs", "lockfiles"):
         flagvalue = metadata.getVarFlag(variable, flag)
         if flagvalue:
-            value.references.update(Value(flagvalue, metadata).references)
+            value.references.update(Value.from_string(flagvalue, metadata).references)
 
     varrefs = metadata.getVarFlag(variable, "varrefs")
     if varrefs:
-        refs = Value(varrefs, metadata)
+        refs = Value.from_string(varrefs, metadata)
         value.references.update(refs.references)
         patterns = str(refs).split()
         for key in metadata.keys():

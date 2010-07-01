@@ -22,32 +22,32 @@ class TestExpansions(unittest.TestCase):
         self.d["value of foo"] = "value of 'value of foo'"
 
     def test_one_var(self):
-        val = bb.data_values.Value("${foo}", self.d)
+        val = bb.data_values.Value.from_string("${foo}", self.d)
         self.assertEqual(str(val), "value of foo")
         self.assertEqual(val.references, set(["foo"]))
 
     def test_indirect_one_var(self):
-        val = bb.data_values.Value("${${foo}}", self.d)
+        val = bb.data_values.Value.from_string("${${foo}}", self.d)
         self.assertEqual(str(val), "value of 'value of foo'")
         self.assertEqual(val.references, set(["foo"]))
 
     def test_indirect_and_another(self):
-        val = bb.data_values.Value("${${foo}} ${bar}", self.d)
+        val = bb.data_values.Value.from_string("${${foo}} ${bar}", self.d)
         self.assertEqual(str(val), "value of 'value of foo' value of bar")
         self.assertEqual(val.references, set(["foo", "bar"]))
 
     def test_python_snippet(self):
-        val = bb.data_values.Value("${@5*12}", self.d)
+        val = bb.data_values.Value.from_string("${@5*12}", self.d)
         self.assertEqual(str(val), "60")
         self.assertFalse(val.references)
 
     def test_expand_in_python_snippet(self):
-        val = bb.data_values.Value("${@'boo ' + '${foo}'}", self.d)
+        val = bb.data_values.Value.from_string("${@'boo ' + '${foo}'}", self.d)
         self.assertEqual(str(val), "boo value of foo")
         self.assertEqual(val.references, set(["foo"]))
 
     def test_python_snippet_getvar(self):
-        val = bb.data_values.Value("${@d.getVar('foo', True) + ' ${bar}'}", self.d)
+        val = bb.data_values.Value.from_string("${@d.getVar('foo', True) + ' ${bar}'}", self.d)
         self.assertEqual(str(val), "value of foo value of bar")
         self.assertEqual(val.references, set(["foo", "bar"]))
 
@@ -73,13 +73,13 @@ class TestExpansions(unittest.TestCase):
             self.fail("Did not raise expected PythonExpansionError")
 
     def test_value_containing_value(self):
-        otherval = bb.data_values.Value("${@d.getVar('foo', True) + ' ${bar}'}", self.d)
+        otherval = bb.data_values.Value.from_string("${@d.getVar('foo', True) + ' ${bar}'}", self.d)
         val = bb.data_values.Value(bb.data_values.Components([otherval, " test"]), self.d)
         self.assertEqual(str(val), "value of foo value of bar test")
         self.assertEqual(val.references, set(["foo", "bar"]))
 
     def test_reference_undefined_var(self):
-        val = bb.data_values.Value("${undefinedvar} meh", self.d)
+        val = bb.data_values.Value.from_string("${undefinedvar} meh", self.d)
         self.assertEqual(str(val), "${undefinedvar} meh")
         self.assertEqual(val.references, set(["undefinedvar"]))
 
@@ -114,23 +114,23 @@ class TestExpansions(unittest.TestCase):
             self.fail("RecursionError not raised")
 
     def test_incomplete_python_ref(self):
-        value = bb.data_values.Value("${@5*3", self.d)
+        value = bb.data_values.Value.from_string("${@5*3", self.d)
         self.assertEqual(value.components, bb.data_values.Components(["${", "@5*3"]))
 
     def test_incomplete_ref(self):
-        value = bb.data_values.Value("${FOO", self.d)
+        value = bb.data_values.Value.from_string("${FOO", self.d)
         self.assertEqual(value.components, bb.data_values.Components(["${", "FOO"]))
 
     def test_nested_incomplete_ref(self):
-        value = bb.data_values.Value("${FOO${BAR", self.d)
+        value = bb.data_values.Value.from_string("${FOO${BAR", self.d)
         self.assertEqual(value.components, bb.data_values.Components(["${", "FOO", "${", "BAR"]))
 
     def test_nested_partial_python_incomplete_ref(self):
-        value = bb.data_values.Value("${${@5*3}bar", self.d)
+        value = bb.data_values.Value.from_string("${${@5*3}bar", self.d)
         self.assertEqual(bb.data_values.stable_repr(value), "Value(['${', PythonSnippet(['5*3']), 'bar'])")
 
     def test_nested_partial_incomplete_ref(self):
-        value = bb.data_values.Value("${${FOO}bar", self.d)
+        value = bb.data_values.Value.from_string("${${FOO}bar", self.d)
         self.assertEqual(bb.data_values.stable_repr(value), "Value(['${', VariableRef(['FOO']), 'bar'])")
 
 
@@ -155,22 +155,22 @@ class TestShell(unittest.TestCase):
         self.d = bb.data.init()
 
     def test_quotes_inside_assign(self):
-        value = bb.data_values.ShellValue('foo=foo"bar"baz', self.d)
+        value = bb.data_values.ShellValue.from_string('foo=foo"bar"baz', self.d)
 
     def test_quotes_inside_arg(self):
-        value = bb.data_values.ShellValue('sed s#"bar baz"#"alpha beta"#g', self.d)
+        value = bb.data_values.ShellValue.from_string('sed s#"bar baz"#"alpha beta"#g', self.d)
         self.assertEqual(value.execs, set(["sed"]))
 
     def test_arg_continuation(self):
-        value = bb.data_values.ShellValue("sed -i -e s,foo,bar,g \\\n *.pc", self.d)
+        value = bb.data_values.ShellValue.from_string("sed -i -e s,foo,bar,g \\\n *.pc", self.d)
         self.assertEqual(value.execs, set(["sed"]))
 
     def test_dollar_in_quoted(self):
-        value = bb.data_values.ShellValue('sed -i -e "foo$" *.pc', self.d)
+        value = bb.data_values.ShellValue.from_string('sed -i -e "foo$" *.pc', self.d)
         self.assertEqual(value.execs, set(["sed"]))
 
     def test_quotes_inside_arg_continuation(self):
-        value = bb.data_values.ShellValue("""
+        value = bb.data_values.ShellValue.from_string("""
         sed -i -e s#"moc_location=.*$"#"moc_location=${bindir}/moc4"# \\
                -e s#"uic_location=.*$"#"uic_location=${bindir}/uic4"# \\
                ${D}${libdir}/pkgconfig/*.pc
@@ -178,20 +178,20 @@ class TestShell(unittest.TestCase):
         self.assertEqual(value.references, set(["bindir", "D", "libdir"]))
 
     def test_assign_subshell_expansion(self):
-        value = bb.data_values.ShellValue("foo=$(echo bar)", self.d)
+        value = bb.data_values.ShellValue.from_string("foo=$(echo bar)", self.d)
         self.assertEqual(value.execs, set(["echo"]))
 
     def test_shell_unexpanded(self):
-        value = bb.data_values.ShellValue('echo "${QT_BASE_NAME}"', self.d)
+        value = bb.data_values.ShellValue.from_string('echo "${QT_BASE_NAME}"', self.d)
         self.assertEqual(value.execs, set(["echo"]))
         self.assertEqual(value.references, set(["QT_BASE_NAME"]))
 
     def test_incomplete_varexp_single_quotes(self):
-        value = bb.data_values.ShellValue("sed -i -e 's:IP{:I${:g' $pc", self.d)
+        value = bb.data_values.ShellValue.from_string("sed -i -e 's:IP{:I${:g' $pc", self.d)
         self.assertEqual(value.execs, set(["sed"]))
 
     def test_until(self):
-        shellval = bb.data_values.ShellValue("until false; do echo true; done", self.d)
+        shellval = bb.data_values.ShellValue.from_string("until false; do echo true; done", self.d)
         self.assertEquals(shellval.execs, set(["false", "echo"]))
         self.assertEquals(shellval.references, set())
 
@@ -203,16 +203,16 @@ case $foo in
         ;;
 esac
         """
-        shellval = bb.data_values.ShellValue(script, self.d)
+        shellval = bb.data_values.ShellValue.from_string(script, self.d)
         self.assertEquals(shellval.execs, set(["bar"]))
         self.assertEquals(shellval.references, set())
 
     def test_assign_exec(self):
-        value = bb.data_values.ShellValue("a=b c='foo bar' alpha 1 2 3", self.d)
+        value = bb.data_values.ShellValue.from_string("a=b c='foo bar' alpha 1 2 3", self.d)
         self.assertEquals(value.execs, set(["alpha"]))
 
     def test_redirect_to_file(self):
-        value = bb.data_values.ShellValue("echo foo >${foo}/bar", self.d)
+        value = bb.data_values.ShellValue.from_string("echo foo >${foo}/bar", self.d)
         self.assertEquals(value.execs, set(["echo"]))
         self.assertEquals(value.references, set(["foo"]))
 
@@ -224,7 +224,7 @@ beta
 theta
 END
         """
-        value = bb.data_values.ShellValue(script, self.d)
+        value = bb.data_values.ShellValue.from_string(script, self.d)
 
     def test_redirect_from_heredoc(self):
         script = """
@@ -236,18 +236,19 @@ shadow_cv_logdir=${SHADOW_LOGDIR}
 shadow_cv_passwd_dir=${bindir}
 END
         """
-        value = bb.data_values.ShellValue(script, self.d)
+        value = bb.data_values.ShellValue.from_string(script, self.d)
         self.assertEquals(value.references, set(["B", "SHADOW_MAILDIR",
                                                  "SHADOW_MAILFILE", "SHADOW_UTMPDIR",
                                                  "SHADOW_LOGDIR", "bindir"]))
         self.assertEquals(value.execs, set(["cat"]))
 
     def test_incomplete_command_expansion(self):
-        self.assertRaises(bb.data_values.ShellSyntaxError, bb.data_values.ShellValue, "cp foo`", self.d)
+        self.assertRaises(bb.data_values.ShellSyntaxError, bb.data_values.ShellValue.from_string,
+                          "cp foo`", self.d)
 
     def test_rogue_dollarsign(self):
         self.d.setVar("D", "/tmp")
-        value = bb.data_values.ShellValue("install -d ${D}$", self.d)
+        value = bb.data_values.ShellValue.from_string("install -d ${D}$", self.d)
         self.assertEqual(value.references, set(["D"]))
         self.assertEqual(value.execs, set(["install"]))
 
@@ -321,7 +322,7 @@ class TestContentsTracking(unittest.TestCase):
         self.d.setVar("inverted", "echo inverted...")
         self.d.setVarFlag("inverted", "func", True)
 
-        shellval = bb.data_values.ShellValue(self.shelldata, self.d)
+        shellval = bb.data_values.ShellValue.from_string(self.shelldata, self.d)
         self.assertEquals(shellval.references, set(["somevar", "inverted"]))
         self.assertEquals(shellval.execs, set(["bar", "echo", "heh", "moo",
                                                "true", "false", "test", "aiee",
@@ -358,12 +359,12 @@ class TestPython(unittest.TestCase):
             self.context = __builtin__.__dict__
 
     def test_getvar_reference(self):
-        value = bb.data_values.PythonValue("bb.data.getVar('foo', d, True)", self.d)
+        value = bb.data_values.PythonValue.from_string("bb.data.getVar('foo', d, True)", self.d)
         self.assertEqual(value.references, set(["foo"]))
         self.assertEqual(value.calls, set())
 
     def test_var_reference(self):
-        value = bb.data_values.PythonValue("foo('${FOO}')", self.d)
+        value = bb.data_values.PythonValue.from_string("foo('${FOO}')", self.d)
         self.assertEqual(value.references, set(["FOO"]))
         self.assertEqual(value.calls, set(["foo"]))
 
@@ -371,31 +372,31 @@ class TestPython(unittest.TestCase):
         for etype in ("func", "task"):
             self.d.setVar("do_something", "echo 'hi mom! ${FOO}'")
             self.d.setVarFlag("do_something", etype, True)
-            value = bb.data_values.PythonValue("bb.build.exec_func('do_something', d)",
+            value = bb.data_values.PythonValue.from_string("bb.build.exec_func('do_something', d)",
                                         self.d)
             self.assertEqual(value.references, set(["do_something"]))
 
     def test_function_reference(self):
         self.context["testfunc"] = lambda msg: bb.msg.note(1, None, msg)
         self.d.setVar("FOO", "Hello, World!")
-        value = bb.data_values.PythonValue("testfunc('${FOO}')", self.d)
+        value = bb.data_values.PythonValue.from_string("testfunc('${FOO}')", self.d)
         self.assertEqual(value.references, set(["FOO"]))
         self.assertEqual(value.function_references,
                          set([("testfunc", self.context["testfunc"])]))
         del self.context["testfunc"]
 
     def test_qualified_function_reference(self):
-        value = bb.data_values.PythonValue("time.time()", self.d)
+        value = bb.data_values.PythonValue.from_string("time.time()", self.d)
         self.assertEqual(value.function_references,
                          set([("time.time", self.context["time"].time)]))
 
     def test_qualified_function_reference_2(self):
-        value = bb.data_values.PythonValue("os.path.dirname('/foo/bar')", self.d)
+        value = bb.data_values.PythonValue.from_string("os.path.dirname('/foo/bar')", self.d)
         self.assertEqual(value.function_references,
                          set([("os.path.dirname", self.context["os"].path.dirname)]))
 
     def test_qualified_function_reference_nested(self):
-        value = bb.data_values.PythonValue("time.strftime('%Y%m%d',time.gmtime())",
+        value = bb.data_values.PythonValue.from_string("time.strftime('%Y%m%d',time.gmtime())",
                                      self.d)
         self.assertEqual(value.function_references,
                          set([("time.strftime", self.context["time"].strftime),
@@ -403,7 +404,7 @@ class TestPython(unittest.TestCase):
 
     def test_function_reference_chained(self):
         self.context["testget"] = lambda: "\tstrip me     "
-        value = bb.data_values.PythonSnippet("testget().strip()", self.d)
+        value = bb.data_values.PythonSnippet.from_string("testget().strip()", self.d)
         value.resolve()
         self.assertEqual(value.function_references,
                          set([("testget", self.context["testget"])]))
@@ -575,10 +576,10 @@ class TestVisiting(unittest.TestCase):
         self.assertEqual(bb.data_values.stable_repr(blacklisted),
                          "Value(['-', VariableRef(['BAR']), '- ', '${BAZ}'])")
         self.assertEqual(resolver.visit(blacklisted), "-bar value- ${BAZ}")
-        self.assertEqual(resolver.visit(bb.data_values.PythonSnippet("5 * 3", self.d)), "15")
-        self.assertEqual(resolver.visit(bb.data_values.Value("${@5 * 3}", self.d)), "15")
+        self.assertEqual(resolver.visit(bb.data_values.PythonSnippet.from_string("5 * 3", self.d)), "15")
+        self.assertEqual(resolver.visit(bb.data_values.Value.from_string("${@5 * 3}", self.d)), "15")
         self.d.setVar("bar value", "bar value value")
-        self.assertEqual(resolver.visit(bb.data_values.Value("${${BAR}}!", self.d)), "bar value value!")
+        self.assertEqual(resolver.visit(bb.data_values.Value.from_string("${${BAR}}!", self.d)), "bar value value!")
 
     def test_path(self):
         foovalue = bb.data_values.new_value("FOO", self.d)
