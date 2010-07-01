@@ -385,7 +385,7 @@ class Value(object):
             else:
                 result.append(token)
         if current:
-            result += current
+            result += ["${"] + current
         self.components = result
 
 
