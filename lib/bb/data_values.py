@@ -358,14 +358,22 @@ class Value(object):
             self.components.append(self.value)
             return
 
-        tokens = (var for var in self.variable_ref.split(self.value) if var)
+        EOF = object()
+        tokens = self.variable_ref.split(self.value)
+        tokens.append(EOF)
         result = Components()
         current = None
         stack = deque()
-        for token in tokens:
+        for token in filter(None, tokens):
             if token == "${":
                 stack.append(current)
                 current = Components()
+            elif token is EOF:
+                # Handle any incomplete references
+                stack.append(current)
+                for element in filter(None, stack):
+                    result.append("${")
+                    result.extend(element)
             elif stack:
                 if token == "}":
                     if hasattr(current[0], "startswith") and \
@@ -384,8 +392,6 @@ class Value(object):
                     current.append(token)
             else:
                 result.append(token)
-        if current:
-            result += ["${"] + current
         self.components = result
 
 
