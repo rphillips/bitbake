@@ -113,6 +113,27 @@ class TestExpansions(unittest.TestCase):
         else:
             self.fail("RecursionError not raised")
 
+    def test_incomplete_python_ref(self):
+        value = bb.data_values.Value("${@5*3", self.d)
+        self.assertEqual(value.components, bb.data_values.Components(["${", "@5*3"]))
+
+    def test_incomplete_ref(self):
+        value = bb.data_values.Value("${FOO", self.d)
+        self.assertEqual(value.components, bb.data_values.Components(["${", "FOO"]))
+
+    def test_nested_incomplete_ref(self):
+        value = bb.data_values.Value("${FOO${BAR", self.d)
+        self.assertEqual(value.components, bb.data_values.Components(["${", "FOO", "${", "BAR"]))
+
+    def test_nested_partial_python_incomplete_ref(self):
+        value = bb.data_values.Value("${${@5*3}bar", self.d)
+        self.assertEqual(bb.data_values.stable_repr(value), "Value(['${', PythonSnippet(['5*3']), 'bar'])")
+
+    def test_nested_partial_incomplete_ref(self):
+        value = bb.data_values.Value("${${FOO}bar", self.d)
+        self.assertEqual(bb.data_values.stable_repr(value), "Value(['${', VariableRef(['FOO']), 'bar'])")
+
+
 class TestMemoize(unittest.TestCase):
     def test_memoized(self):
         d = bb.data.init()
