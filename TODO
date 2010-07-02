@@ -11,8 +11,21 @@
   the value goes across, as it doesn't utilize renameVar
 - Variable reference tracking
 
-  - Test moving the parsing out of the constructors and into factory functions
-    instead, and move the object caching as decorators of those functions.
+  - Add dirty state tracking / cached expansions
+  - Kill Components
+  - Determine whether we want to retain the tight association between the
+    value objects and a DataSmart instance.  The metadata is only really
+    needed to expand VariableRef objects, everything else doesn't require it.
+    On the other hand, in the future we'll likely want to obtain and cache the
+    expanded form of values at construction time, which makes constructing
+    them without the metadata problematic.
+    The danger I see with the current way of doing things is that the creation
+    of a new COW instance of a datasmart won't automatically associate the new
+    metadata with the variablerefs in the value tree with that instance.
+    I think we may have to directly store value instances in the metadata,
+    then have getVar automatically re-expand if necessary (if the metadata
+    instance has changed), or something along those lines.  Needs further
+    thought.
   - Start integrating visitor/transformer bits.
 
 - Fix up the exception handling
