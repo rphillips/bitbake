@@ -102,17 +102,16 @@ class Visitor(object):
         self.path.pop()
 
     def generic_visit(self, node):
-        if isinstance(node, VariableRef):
+        if hasattr(node, "components"):
             self.generic_visit(node.components)
+
+        if isinstance(node, VariableRef):
             if self.crossref:
                 name = node.components.resolve()
                 value = new_value(name, node.metadata)
                 self.visit(value)
 
         elif isinstance(node, PythonValue):
-            for component in node.components:
-                self.visit(component)
-
             if self.crossref:
                 for var in chain(node.calls, node.visitor.var_execs, node.visitor.var_references):
                     strvalue = node.metadata.getVar(var, False)
@@ -120,18 +119,11 @@ class Visitor(object):
                         self.visit(new_value(strvalue, node.metadata))
 
         elif isinstance(node, ShellValue):
-            for component in node.components:
-                self.visit(component)
-
             if self.crossref:
                 for var in node.execs:
                     strvalue = node.metadata.getVar(var, False)
                     if strvalue:
                         self.visit(new_value(strvalue, node.metadata))
-
-        elif isinstance(node, Value):
-            for component in node.components:
-                self.visit(component)
 
         elif isinstance(node, Components):
             for component in node:
