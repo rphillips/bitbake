@@ -300,12 +300,11 @@ class Value(object):
 
     def update_references(self, value):
         for item in value.components:
-            if isinstance(item, VariableRef):
-                if all(isinstance(x, basestring) for x in item.components):
-                    self.references.add(item.components.resolve())
-                else:
-                    self.update_references(item)
-            elif isinstance(item, Value):
+            if isinstance(item, VariableRef) and \
+               all(isinstance(x, basestring) for x in item.components):
+                self.references.add(item.components.resolve())
+            if isinstance(item, Value):
+                self.update_references(item)
                 self.references.update(item.references)
 
     def __eq__(self, other):
