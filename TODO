@@ -11,6 +11,8 @@
   the value goes across, as it doesn't utilize renameVar
 - Variable reference tracking
 
+  - Event handlers are a problem.  We need to exclude them from the checking
+    against the task signature.
   - Add dirty state tracking / cached expansions
   - Kill Components
   - Determine whether we want to retain the tight association between the
