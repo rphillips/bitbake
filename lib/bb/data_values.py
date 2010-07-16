@@ -107,7 +107,7 @@ class Visitor(object):
 
         if isinstance(node, VariableRef):
             if self.crossref:
-                name = node.components.resolve()
+                name = Value.resolve(node)
                 value = new_value(name, node.metadata)
                 self.visit(value)
 
@@ -136,7 +136,7 @@ class References(Visitor):
         Visitor.__init__(self, crossref)
 
     def visit_VariableRef(self, node):
-        name = node.components.resolve()
+        name = Value.resolve(node)
         self.references.add(name)
 
     def visit_PythonValue(self, node):
@@ -175,7 +175,7 @@ class Transformer(Visitor):
                 return components
 
             if self.crossref:
-                name = components.resolve()
+                name = Value.resolve(node)
                 value = new_value(name, node.metadata)
                 return self.visit(value)
             elif components != node.components:
@@ -206,7 +206,7 @@ class Blacklister(Transformer):
         return newnode
 
     def visit_VariableRef(self, node):
-        name = node.components.resolve()
+        name = Value.resolve(node)
         if hasattr(node, "blacklisted") or self.is_blacklisted(name):
             return "${%s}" % name
         else:
@@ -302,7 +302,7 @@ class Value(object):
         for item in value.components:
             if isinstance(item, VariableRef) and \
                all(isinstance(x, basestring) for x in item.components):
-                self.references.add(item.components.resolve())
+                self.references.add(Value.resolve(item))
             if isinstance(item, Value):
                 self.update_references(item)
                 self.references.update(item.references)
@@ -325,11 +325,18 @@ class Value(object):
     def __str__(self):
         return self.resolve()
 
+    def _resolve(self, path = None):
+        for v in self.components:
+            if hasattr(v, "resolve"):
+                yield v.resolve(path)
+            else:
+                yield v
+
     def resolve(self, path = None):
         if path is None:
             path = Path()
         path.append(self)
-        resolved = self.components.resolve(path)
+        resolved = "".join(self._resolve(path))
         path.pop()
         return resolved
 
