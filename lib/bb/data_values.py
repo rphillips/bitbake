@@ -174,12 +174,13 @@ class Transformer(Visitor):
             if not isinstance(components, Components):
                 return components
 
+            if components != node.components:
+                node = VariableRef(components, node.metadata)
+
             if self.crossref:
                 name = Value.resolve(node)
                 value = new_value(name, node.metadata)
                 return self.visit(value)
-            elif components != node.components:
-                return VariableRef(components, node.metadata)
         elif isinstance(node, Value):
             newcomponents = Components(self.visit(component)
                                        for component in node.components)
