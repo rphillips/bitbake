@@ -19,6 +19,7 @@ BLACKLIST = (
     "BB_*",
     "BBFILE_*",
     "BBFILES",
+    "LAYER",
     "BBLAYERS",
     "BBPATH",
     "BBMASK",
@@ -31,6 +32,7 @@ BLACKLIST = (
     "TIME",
     "*DIR",
     "PATH",
+    "BBPATH",
     "CWD",
     "FILE",
 )
