@@ -172,7 +172,7 @@ class Transformer(Visitor):
 
     def generic_visit(self, node):
         if isinstance(node, VariableRef):
-            components = self.generic_visit(node.components)
+            components = self.visit(node.components)
             if not isinstance(components, Components):
                 return components
 
@@ -184,8 +184,7 @@ class Transformer(Visitor):
                 value = new_value(name, node.metadata)
                 return self.visit(value)
         elif isinstance(node, Value):
-            newcomponents = Components(self.visit(component)
-                                       for component in node.components)
+            newcomponents = self.visit(node.components)
             if node.components != newcomponents:
                 newvalue = node.__class__(newcomponents, node.metadata)
                 newvalue.references.update(node.references)
