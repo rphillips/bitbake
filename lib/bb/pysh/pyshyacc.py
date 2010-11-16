@@ -9,11 +9,12 @@
 """
 import sys
 
-import pyshlex
+from . import pyshlex
+import collections
 tokens = pyshlex.tokens
 
 from ply import yacc
-import sherrors
+from . import sherrors
     
 class IORedirect:
     def __init__(self, op, filename, io_number=None):
@@ -684,21 +685,21 @@ def format_commands(v):
     if isinstance(v, tuple):
         if len(v)==2 and isinstance(v[0], str) and not isinstance(v[1], str):
             if v[0] == 'async':
-                return ['AsyncList', map(format_commands, v[1])]
+                return ['AsyncList', list(map(format_commands, v[1]))]
             else:
                 #Avoid decomposing tuples like ('pipeline', Pipeline(...))
                 return format_commands(v[1])
         return format_commands(list(v))
     elif isinstance(v, IfCond):
         name = ['IfCond']
-        name += ['if', map(format_commands, v.cond)]
-        name += ['then', map(format_commands, v.if_cmds)]
-        name += ['else', map(format_commands, v.else_cmds)]
+        name += ['if', list(map(format_commands, v.cond))]
+        name += ['then', list(map(format_commands, v.if_cmds))]
+        name += ['else', list(map(format_commands, v.else_cmds))]
         return name
     elif isinstance(v, ForLoop):
         name = ['ForLoop']
-        name += [repr(v.name)+' in ', map(str, v.items)]
-        name += ['commands', map(format_commands, v.cmds)]
+        name += [repr(v.name)+' in ', list(map(str, v.items))]
+        name += ['commands', list(map(format_commands, v.cmds))]
         return name
     elif isinstance(v, AndOr):
         return [v.op, format_commands(v.left), format_commands(v.right)]
@@ -713,17 +714,17 @@ def format_commands(v):
     elif isinstance(v, SimpleCommand):
         name = ['SimpleCommand']
         if v.words:                
-            name += ['words', map(str, v.words)]
+            name += ['words', list(map(str, v.words))]
         if v.assigns:
             assigns = [tuple(a[1]) for a in v.assigns]
-            name += ['assigns', map(str, assigns)]
+            name += ['assigns', list(map(str, assigns))]
         if v.redirs:
-            name += ['redirs', map(format_commands, v.redirs)]
+            name += ['redirs', list(map(format_commands, v.redirs))]
         return name
     elif isinstance(v, RedirectList):
         name = ['RedirectList']
         if v.redirs:
-            name += ['redirs', map(format_commands, v.redirs)]
+            name += ['redirs', list(map(format_commands, v.redirs))]
         name += ['command', format_commands(v.cmd)]
         return name
     elif isinstance(v, IORedirect):
@@ -731,7 +732,7 @@ def format_commands(v):
     elif isinstance(v, HereDocument):
         return ' '.join(map(str, (v.io_number, v.op, repr(v.name), repr(v.content))))
     elif isinstance(v, SubShell):
-        return ['SubShell', map(format_commands, v.cmds)]
+        return ['SubShell', list(map(format_commands, v.cmds))]
     else:
         return repr(v)
              
@@ -742,7 +743,7 @@ def print_commands(cmds, output=sys.stdout):
             for c in cmd:
                 print_tree(c, spaces + 3, output)              
         else:
-            print >>output, ' '*spaces + str(cmd)
+            print(' '*spaces + str(cmd), file=output)
     
     formatted = format_commands(cmds)
     print_tree(formatted, 0, output)
@@ -773,6 +774,7 @@ def visit_commands(cmds, callable):
     SimpleCommand instances.
     """
     if isinstance(cmds, (tuple, list)):
-        map(lambda c: visit_commands(c,callable), cmds)
+        for c in cmds:
+            visit_commands(c, callable)
     elif isinstance(cmds, (Pipeline, SimpleCommand)):
-        callable(cmds)
+        isinstance(cmds, collections.Callable)

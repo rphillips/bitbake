@@ -34,12 +34,12 @@
 import time
 import bb
 from bb.ui import uievent
-import xmlrpclib
+import xmlrpc.client
 import pickle
 
 DEBUG = False
 
-from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
+from xmlrpc.server import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 import inspect, select
 
 class BitBakeServerCommands():

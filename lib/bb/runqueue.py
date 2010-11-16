@@ -104,7 +104,7 @@ class RunQueueScheduler(object):
             if self.rq.runq_buildable[taskid] == 1:
                 yield taskid
 
-    def next(self):
+    def __next__(self):
         """
         Return the id of the task we should build next
         """
@@ -188,8 +188,8 @@ class RunQueue:
         self.stamppolicy = bb.data.getVar("BB_STAMP_POLICY", cfgData, 1) or "perfile"
         self.stampwhitelist = bb.data.getVar("BB_STAMP_WHITELIST", cfgData, 1) or ""
 
-        self.schedulers = set(obj for obj in globals().itervalues()
-                              if type(obj) is type and issubclass(obj, RunQueueScheduler))
+        self.schedulers = set(obj for obj in globals().values()
+                              if isinstance(obj, type) and issubclass(obj, RunQueueScheduler))
 
         user_schedulers = bb.data.getVar("BB_SCHEDULERS", cfgData, True)
         if user_schedulers:
@@ -201,7 +201,7 @@ class RunQueue:
                 modname, name = sched.rsplit(".", 1)
                 try:
                     module = __import__(modname, fromlist=(name,))
-                except ImportError, exc:
+                except ImportError as exc:
                     logger.critical("Unable to import scheduler '%s' from '%s': %s" % (name, modname, exc))
                     raise SystemExit(1)
                 else:
@@ -968,7 +968,7 @@ class RunQueue:
             self.state = runQueueCleanUp
 
         while True:
-            for task in iter(self.sched.next, None):
+            for task in iter(self.sched.__next__, None):
                 fn = self.taskData.fn_index[self.runq_fnid[task]]
 
                 taskname = self.runq_task[task]
@@ -1033,7 +1033,7 @@ class RunQueue:
     def finish_runqueue_now(self):
         if self.stats.active:
             logger.info("Sending SIGTERM to remaining %s tasks", self.stats.active)
-            for k, v in self.build_pids.iteritems():
+            for k, v in self.build_pids.items():
                 try:
                     os.kill(-k, signal.SIGTERM)
                 except:

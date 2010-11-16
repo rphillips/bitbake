@@ -29,10 +29,10 @@ def has_subprocess_bug():
 # Also detect: "[ 1710802 ] subprocess must escape redirection characters under win32"
 # <http://sourceforge.net/tracker/index.php?func=detail&aid=1710802&group_id=5470&atid=105470>
 if has_subprocess_bug():
-    import subprocess_fix
+    from . import subprocess_fix
     subprocess.list2cmdline = subprocess_fix.list2cmdline
 
-from sherrors import *
+from .sherrors import *
 
 class NonExitingParser(optparse.OptionParser):
     """OptionParser default behaviour upon error is to print the error message and
@@ -61,7 +61,7 @@ OPT_SET.add_option('-x', action='store_true', dest='has_x', default=False,
 
 def builtin_set(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
 
     option, args = OPT_SET.parse_args(args)
     env = interp.get_env()
@@ -79,7 +79,7 @@ def builtin_set(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------  
 def builtin_shift(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     params = interp.get_env().get_positional_args()
     if args:
@@ -104,7 +104,7 @@ OPT_EXPORT.add_option('-p', action='store_true', dest='has_p', default=False)
 
 def builtin_export(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     option, args = OPT_EXPORT.parse_args(args)
     if option.has_p:
@@ -124,7 +124,7 @@ def builtin_export(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------  
 def builtin_return(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
     res = 0
     if args:
         try:
@@ -142,7 +142,7 @@ def builtin_return(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------  
 def builtin_trap(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
     if len(args) < 2:
         stderr.write('trap: usage: trap [[arg] signal_spec ...]\n')
         return 2
@@ -151,7 +151,7 @@ def builtin_trap(name, args, interp, env, stdin, stdout, stderr, debugflags):
     for sig in args[1:]:
         try:
             env.traps[sig] = action
-        except Exception, e:
+        except Exception as e:
             stderr.write('trap: %s\n' % str(e))
     return 0
 
@@ -164,7 +164,7 @@ OPT_UNSET.add_option( '-v', action='store_true', dest='has_v', default=False)
 
 def builtin_unset(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     option, args = OPT_UNSET.parse_args(args)
     
@@ -188,7 +188,7 @@ def builtin_unset(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------  
 def builtin_wait(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
 
     return interp.wait([int(arg) for arg in args])
 
@@ -197,7 +197,7 @@ def builtin_wait(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------
 def utility_cat(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
 
     if not args:
         args = ['-']
@@ -214,7 +214,7 @@ def utility_cat(name, args, interp, env, stdin, stdout, stderr, debugflags):
                     data = f.read()
                 finally:
                     f.close()
-            except IOError, e:
+            except IOError as e:
                 if e.errno != errno.ENOENT:
                     raise
                 status = 1
@@ -230,7 +230,7 @@ OPT_CD = NonExitingParser("cd - change the working directory")
 
 def utility_cd(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
 
     option, args = OPT_CD.parse_args(args)
     env = interp.get_env()
@@ -279,7 +279,7 @@ def utility_cd(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------  
 def utility_colon(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
     return 0
     
 #-------------------------------------------------------------------------------  
@@ -287,7 +287,7 @@ def utility_colon(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------  
 def utility_echo(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     # Echo only takes arguments, no options. Use printf if you need fancy stuff.
     output = ' '.join(args) + '\n'
@@ -303,7 +303,7 @@ def utility_echo(name, args, interp, env, stdin, stdout, stderr, debugflags):
 # so the redirection is implemented here, assuming grep is available.
 def utility_egrep(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     return run_command('grep', ['-E'] + args, interp, env, stdin, stdout, 
         stderr, debugflags)
@@ -313,7 +313,7 @@ def utility_egrep(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------  
 def utility_env(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
     
     if args and args[0]=='-i':
         raise NotImplementedError('env: -i option is not implemented')
@@ -342,7 +342,7 @@ def utility_env(name, args, interp, env, stdin, stdout, stderr, debugflags):
             stderr.write('env: failed to execute %s' % ' '.join([name]+args))
             return 126            
     else:
-        for pair in env.get_variables().iteritems():
+        for pair in env.get_variables().items():
             stdout.write('%s=%s\n' % pair)
     return 0
     
@@ -351,7 +351,7 @@ def utility_env(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------
 def utility_exit(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     res = None
     if args:
@@ -374,7 +374,7 @@ def utility_exit(name, args, interp, env, stdin, stdout, stderr, debugflags):
 # see egrep
 def utility_fgrep(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     return run_command('grep', ['-F'] + args, interp, env, stdin, stdout, 
         stderr, debugflags)
@@ -385,7 +385,7 @@ def utility_fgrep(name, args, interp, env, stdin, stdout, stderr, debugflags):
 # see egrep
 def utility_gunzip(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     return run_command('gzip', ['-d'] + args, interp, env, stdin, stdout, 
         stderr, debugflags)
@@ -395,7 +395,7 @@ def utility_gunzip(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------
 def utility_kill(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     for arg in args:
         pid = int(arg)
@@ -404,7 +404,7 @@ def utility_kill(name, args, interp, env, stdin, stdout, stderr, debugflags):
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
         # pskill is asynchronous, hence the stupid polling loop
-        while 1:
+        while True:
             p = subprocess.Popen(['pslist', str(pid)],
                                 shell=True,
                                 stdout=subprocess.PIPE,
@@ -423,7 +423,7 @@ OPT_MKDIR.add_option('-p', action='store_true', dest='has_p', default=False)
 
 def utility_mkdir(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     # TODO: implement umask
     # TODO: implement proper utility error report
@@ -433,7 +433,7 @@ def utility_mkdir(name, args, interp, env, stdin, stdout, stderr, debugflags):
         if option.has_p:
             try:
                 os.makedirs(path)
-            except IOError, e:
+            except IOError as e:
                 if e.errno != errno.EEXIST:
                     raise
         else:               
@@ -449,7 +449,7 @@ def utility_netstat(name, args, interp, env, stdin, stdout, stderr, debugflags):
     # supposed to generate nothing upon success. Faking this test
     # is not a big deal either.
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
     return 0
     
 #-------------------------------------------------------------------------------  
@@ -467,7 +467,7 @@ OPT_PWD.add_option('-P', action='store_true', dest='has_L', default=False,
 
 def utility_pwd(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
 
     option, args = OPT_PWD.parse_args(args)        
     stdout.write('%s\n' % env['PWD'])
@@ -480,7 +480,7 @@ RE_UNESCAPE = re.compile(r'(\\x[a-zA-Z0-9]{2}|\\[0-7]{1,3}|\\.)')
 
 def utility_printf(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     def replace(m):
         assert m.group()
@@ -511,7 +511,7 @@ def utility_printf(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------
 def utility_true(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
     return 0
 
 #-------------------------------------------------------------------------------  
@@ -524,10 +524,10 @@ RE_SED = re.compile(r'^s(.).*\1[a-zA-Z]*$')
 # in cygwin shell.
 def utility_sed(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     # Scan pattern arguments and append a space if necessary
-    for i in xrange(len(args)):
+    for i in range(len(args)):
         if not RE_SED.search(args[i]):
             continue
         args[i] = args[i] + ' '
@@ -540,7 +540,7 @@ def utility_sed(name, args, interp, env, stdin, stdout, stderr, debugflags):
 #-------------------------------------------------------------------------------
 def utility_sleep(name, args, interp, env, stdin, stdout, stderr, debugflags):
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
     time.sleep(int(args[0]))
     return 0
     
@@ -561,7 +561,7 @@ def utility_sort(name, args, interp, env, stdin, stdout, stderr, debugflags):
                     lines = f.readlines()
                 finally:
                     f.close()
-            except IOError, e:
+            except IOError as e:
                 stderr.write(str(e) + '\n')
                 return 1
         
@@ -570,7 +570,7 @@ def utility_sort(name, args, interp, env, stdin, stdout, stderr, debugflags):
         return lines
     
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
         
     option, args = OPT_SORT.parse_args(args)
     alllines = []
@@ -648,7 +648,7 @@ def run_command(name, args, interp, env, stdin, stdout,
                 stderr, debugflags):
     # Execute the command
     if 'debug-utility' in debugflags:
-        print interp.log(' '.join([name, str(args), interp['PWD']]) + '\n')
+        print(interp.log(' '.join([name, str(args), interp['PWD']]) + '\n'))
 
     hgbin = interp.options().hgbinary
     ishg = hgbin and ('hg' in name or args and 'hg' in args[0])
@@ -679,7 +679,7 @@ def run_command(name, args, interp, env, stdin, stdout,
             p = subprocess.Popen([name] + args, cwd=env['PWD'], env=exec_env, 
                     stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         out, err = p.communicate()
-    except WindowsError, e:
+    except WindowsError as e:
         raise UtilityError(str(e))
 
     if not unixoutput:

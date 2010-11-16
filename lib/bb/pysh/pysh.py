@@ -9,7 +9,7 @@ import optparse
 import os
 import sys
 
-import interp
+from . import interp
 
 SH_OPT = optparse.OptionParser(prog='pysh', usage="%prog [OPTIONS]", version='0.1')
 SH_OPT.add_option('-c', action='store_true', dest='command_string', default=None, 
@@ -131,7 +131,7 @@ def _sh(cwd, shargs, cmdargs, options, debugflags=None, env=None):
                                 opts=opts)
         try:
             # Export given environment in shell object
-            for k,v in env.iteritems():
+            for k,v in env.items():
                 ip.get_env().export(k,v)
             return ip.execute_script(input, ast, scriptpath=command_file)
         finally:
@@ -147,15 +147,14 @@ def sh(cwd=None, args=None, debugflags=None, env=None):
     options, shargs = SH_OPT.parse_args(shargs)
 
     if options.profile:
-        import lsprof
+        from . import lsprof
         p = lsprof.Profiler()
         p.enable(subcalls=True)
         try:
             return _sh(cwd, shargs, cmdargs, options, debugflags, env)
         finally:
             p.disable()
-            stats = lsprof.Stats(p.getstats())
-            stats.sort()
+            stats = sorted(lsprof.Stats(p.getstats()))
             stats.pprint(top=10, file=sys.stderr, climit=5)
     else:
         return _sh(cwd, shargs, cmdargs, options, debugflags, env)

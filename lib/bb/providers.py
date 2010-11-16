@@ -192,7 +192,7 @@ def _filterProviders(providers, item, cfgData, dataCache):
             pkg_pn[pn] = []
         pkg_pn[pn].append(p)
 
-    logger.debug(1, "providers for %s are: %s", item, pkg_pn.keys())
+    logger.debug(1, "providers for %s are: %s", item, ", ".join(pkg_pn.keys()))
 
     # First add PREFERRED_VERSIONS
     for pn in pkg_pn:

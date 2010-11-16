@@ -127,7 +127,7 @@ def delVarFlags(var, d):
 
 def keys(d):
     """Return a list of keys in d"""
-    return d.keys()
+    return list(d.keys())
 
 
 __expand_var_regexp__ = re.compile(r"\${[^{}]+}")
@@ -160,7 +160,7 @@ def expandKeys(alterdata, readdata = None):
 
 def inheritFromOS(d):
     """Inherit variables from the environment."""
-    for s in os.environ.keys():
+    for s in list(os.environ.keys()):
         try:
             setVar(s, os.environ[s], d)
             setVarFlag(s, "export", True, d)
@@ -184,7 +184,7 @@ def emit_var(var, o=sys.__stdout__, d = init(), all=False):
         val = getVar(var, d, 1)
     except (KeyboardInterrupt, bb.build.FuncFailed):
         raise
-    except Exception, exc:
+    except Exception as exc:
         o.write('# expansion of %s threw %s: %s\n' % (var, exc.__class__.__name__, str(exc)))
         return 0
 

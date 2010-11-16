@@ -105,14 +105,14 @@ class SSH(Fetch):
         fr += ':%s' % path
 
 
-        import commands
+        import subprocess
         cmd = 'scp -B -r %s %s %s/' % (
             port,
-            commands.mkarg(fr),
-            commands.mkarg(ldir)
+            subprocess.mkarg(fr),
+            subprocess.mkarg(ldir)
         )
 
-        (exitstatus, output) = commands.getstatusoutput(cmd)
+        (exitstatus, output) = subprocess.getstatusoutput(cmd)
         if exitstatus != 0:
             print(output)
             raise FetchError('Unable to fetch %s' % url)

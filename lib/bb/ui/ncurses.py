@@ -44,11 +44,11 @@
 
 """
 
-from __future__ import division
+
 
 import os, sys, curses, itertools, time
 import bb
-import xmlrpclib
+import xmlrpc.client
 from bb import ui
 from bb.ui import uihelper
 
@@ -236,8 +236,8 @@ class NCursesUI:
             if ret != True:
                 print("Couldn't get default commandlind! %s" % ret)
                 return
-        except xmlrpclib.Fault as x:
-            print("XMLRPC Fault getting commandline:\n %s" % x)
+        except xmlrpc.client.Fault as x:
+            print(("XMLRPC Fault getting commandline:\n %s" % x))
             return
 
         exitflag = False
@@ -303,7 +303,7 @@ class NCursesUI:
                     taw.setText(0, 0, "")
                     if activetasks:
                         taw.appendText("Active Tasks:\n")
-                        for task in activetasks.itervalues():
+                        for task in activetasks.values():
                             taw.appendText(task["title"])
                     if failedtasks:
                         taw.appendText("Failed Tasks:\n")

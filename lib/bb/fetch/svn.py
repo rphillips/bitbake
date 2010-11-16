@@ -166,7 +166,7 @@ class Svn(Fetch):
                 os.unlink(ud.localpath)
             except OSError:
                 pass
-            raise t, v, tb
+            raise t(v).with_traceback(tb)
 
     def suppports_srcrev(self):
         return True

@@ -21,8 +21,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-from __future__ import absolute_import
-from future_builtins import filter
+
 import re
 import string
 import logging
@@ -121,15 +120,17 @@ class DataNode(AstNode):
             bb.data.setVar(key, val, data)
 
 class MethodNode:
+    sanitize = re.compile(r"[/\-+.]")
+
     def __init__(self, func_name, body, lineno, fn):
-        self.func_name = func_name
+        self.funcname = func_name
         self.body = body
         self.fn = fn
         self.lineno = lineno
 
     def eval(self, data):
-        if self.func_name == "__anonymous":
-            funcname = ("__anon_%s_%s" % (self.lineno, self.fn.translate(string.maketrans('/.+-', '____'))))
+        if self.funcname == "__anonymous":
+            funcname = "__anon_%s_%s" % (self.lineno, self.sanitize.sub("_", self.fn))
             if not funcname in bb.methodpool._parsed_fns:
                 text = "def %s(d):\n" % (funcname) + '\n'.join(self.body)
                 bb.methodpool.insert_method(funcname, text, self.fn)
@@ -137,8 +138,8 @@ class MethodNode:
             anonfuncs.append(funcname)
             bb.data.setVar('__BBANONFUNCS', anonfuncs, data)
         else:
-            bb.data.setVarFlag(self.func_name, "func", 1, data)
-            bb.data.setVar(self.func_name, '\n'.join(self.body), data)
+            bb.data.setVarFlag(self.funcname, "func", 1, data)
+            bb.data.setVar(self.funcname, '\n'.join(self.body), data)
 
 class PythonMethodNode(AstNode):
     def __init__(self, root, body, fn):
@@ -331,7 +332,7 @@ def _create_variants(datastores, names, function):
         function(arg or name, new_d)
         datastores[name] = new_d
 
-    for variant, variant_d in datastores.items():
+    for variant, variant_d in list(datastores.items()):
         for name in names:
             if not variant:
                 # Based on main recipe
@@ -341,7 +342,7 @@ def _create_variants(datastores, names, function):
 
 def _expand_versions(versions):
     def expand_one(version, start, end):
-        for i in xrange(start, end + 1):
+        for i in range(start, end + 1):
             ver = _bbversions_re.sub(str(i), version, 1)
             yield ver
 
@@ -428,7 +429,7 @@ def multi_finalize(fn, d):
         safe_d.setVar("BBCLASSEXTEND", extended)
         _create_variants(datastores, extended.split(), extendfunc)
 
-    for variant, variant_d in datastores.iteritems():
+    for variant, variant_d in datastores.items():
         if variant:
             try:
                 finalize(fn, variant_d)
@@ -436,7 +437,7 @@ def multi_finalize(fn, d):
                 bb.data.setVar("__SKIPPED", True, variant_d)
 
     if len(datastores) > 1:
-        variants = filter(None, datastores.iterkeys())
+        variants = filter(None, datastores.keys())
         safe_d.setVar("__VARIANTS", " ".join(variants))
 
     datastores[""] = d

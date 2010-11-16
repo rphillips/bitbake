@@ -120,7 +120,7 @@ class Osc(Fetch):
                 os.unlink(ud.localpath)
             except OSError:
                 pass
-            raise t, v, tb
+            raise t(v).with_traceback(tb)
 
     def supports_srcrev(self):
         return False

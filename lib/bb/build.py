@@ -259,7 +259,7 @@ def exec_func_shell(func, d, runfile, logfile, flags):
     f.write("cd %s\n" % os.getcwd())
     if func: f.write("%s\n" % func)
     f.close()
-    os.chmod(runfile, 0775)
+    os.chmod(runfile, 0o775)
     if not func:
         raise TypeError("Function argument must be a string")
 

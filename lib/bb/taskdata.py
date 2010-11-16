@@ -187,7 +187,7 @@ class TaskData:
             for depend in dataCache.deps[fn]:
                 logger.debug(2, "Added dependency %s for %s", depend, fn)
                 dependids[self.getbuild_id(depend)] = None
-            self.depids[fnid] = dependids.keys()
+            self.depids[fnid] = list(dependids.keys())
 
         # Work out runtime dependencies
         if not fnid in self.rdepids:
@@ -202,7 +202,7 @@ class TaskData:
                 for rdepend in bb.utils.explode_deps(rrecs[package]):
                     logger.debug(2, "Added runtime recommendation %s for %s", rdepend, fn)
                     rdependids[self.getrun_id(rdepend)] = None
-            self.rdepids[fnid] = rdependids.keys()
+            self.rdepids[fnid] = list(rdependids.keys())
 
         for dep in self.depids[fnid]:
             if dep in self.failed_deps:

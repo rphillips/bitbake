@@ -39,7 +39,7 @@ import re, sys, types, copy, os
 # This tuple contains known string types
 try:
     # Python 2.6
-    StringTypes = (types.StringType, types.UnicodeType)
+    StringTypes = (bytes, str)
 except AttributeError:
     # Python 3.0
     StringTypes = (str, bytes)
@@ -49,7 +49,7 @@ except AttributeError:
 
 if sys.version_info[0] < 3:
     def func_code(f):
-        return f.func_code
+        return f.__code__
 else:
     def func_code(f):
         return f.__code__
@@ -401,7 +401,7 @@ class Lexer:
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         t = self.token()
         if t is None:
             raise StopIteration

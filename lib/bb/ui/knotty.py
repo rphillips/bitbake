@@ -18,12 +18,12 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-from __future__ import division
+
 
 import os
 import sys
 import itertools
-import xmlrpclib
+import xmlrpc.client
 import logging
 from bb import ui
 from bb.ui import uihelper
@@ -52,10 +52,10 @@ def init(server, eventHandler):
     logging.addLevelName(logging.INFO, "NOTE")
     logging.addLevelName(logging.CRITICAL, "ERROR")
 
-    for level in xrange(logging.INFO - 1, logging.DEBUG + 1, -1):
+    for level in range(logging.INFO - 1, logging.DEBUG + 1, -1):
         logging.addLevelName(level, logging.getLevelName(logging.INFO))
 
-    for level in xrange(logging.DEBUG - 1, 0, -1):
+    for level in range(logging.DEBUG - 1, 0, -1):
         logging.addLevelName(level, logging.getLevelName(logging.DEBUG))
 
     console = logging.StreamHandler(sys.stdout)
@@ -71,8 +71,8 @@ def init(server, eventHandler):
         if ret != True:
             print("Couldn't get default commandline! %s" % ret)
             return 1
-    except xmlrpclib.Fault as x:
-        print("XMLRPC Fault getting commandline:\n %s" % x)
+    except xmlrpc.client.Fault as x:
+        print(("XMLRPC Fault getting commandline:\n %s" % x))
         return 1
 
     shutdown = 0

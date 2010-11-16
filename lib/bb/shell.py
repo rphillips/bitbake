@@ -52,13 +52,13 @@ PROBLEMS:
 # Import and setup global variables
 ##########################################################################
 
-from __future__ import print_function
+
 from functools import reduce
 try:
     set
 except NameError:
     from sets import Set as set
-import sys, os, readline, socket, httplib, urllib, commands, popen2, shlex, Queue, fnmatch
+import sys, os, readline, socket, http.client, urllib.request, urllib.parse, urllib.error, subprocess, popen2, shlex, queue, fnmatch
 from bb import data, parse, build, cache, taskdata, runqueue, providers as Providers
 
 __version__ = "0.5.3.1"
@@ -508,7 +508,7 @@ SRC_URI = ""
     def shell( self, params ):
         """Execute a shell command and dump the output"""
         if params != "":
-            print(commands.getoutput( " ".join( params ) ))
+            print(subprocess.getoutput( " ".join( params ) ))
     shell.usage = "<...>"
 
     def stage( self, params ):
@@ -582,11 +582,11 @@ def sendToPastebin( desc, content ):
     mydata["cvt_tabs"] = "No"
     mydata["nick"] = "%s@%s" % ( os.environ.get( "USER", "unknown" ), socket.gethostname() or "unknown" )
     mydata["text"] = content
-    params = urllib.urlencode( mydata )
+    params = urllib.parse.urlencode( mydata )
     headers = {"Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
 
     host = "rafb.net"
-    conn = httplib.HTTPConnection( "%s:80" % host )
+    conn = http.client.HTTPConnection( "%s:80" % host )
     conn.request("POST", "/paste/paste.php", params, headers )
 
     response = conn.getresponse()
@@ -616,12 +616,12 @@ def completer( text, state ):
                     else: allmatches = [ x.split("/")[-1] for x in cooker.status.pkg_fn ]
                 elif u == "<providee>":
                     if cooker.status.pkg_fn is None: allmatches = [ "(No Matches Available. Parsed yet?)" ]
-                    else: allmatches = cooker.status.providers.iterkeys()
+                    else: allmatches = cooker.status.providers.keys()
                 else: allmatches = [ "(No tab completion available for this command)" ]
             else: allmatches = [ "(No tab completion available for this command)" ]
         else:
             # we are in first argument
-            allmatches = cmds.iterkeys()
+            allmatches = cmds.keys()
 
         completer.matches = [ x for x in allmatches if x[:len(text)] == text ]
         #print "completer.matches = '%s'" % completer.matches
@@ -703,7 +703,7 @@ class BitBakeShell:
 
     def __init__( self ):
         """Register commands and set up readline"""
-        self.commandQ = Queue.Queue()
+        self.commandQ = queue.Queue()
         self.commands = BitBakeShellCommands( self )
         self.myout = MemoryOutput( sys.stdout )
         self.historyfilename = os.path.expanduser( "~/.bbsh_history" )
@@ -769,7 +769,7 @@ class BitBakeShell:
             try:
                 if self.commandQ.empty():
                     sys.stdout = self.myout.delegate
-                    cmdline = raw_input( "BB>> " )
+                    cmdline = input( "BB>> " )
                     sys.stdout = self.myout
                 else:
                     cmdline = self.commandQ.get()

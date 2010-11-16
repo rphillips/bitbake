@@ -25,7 +25,7 @@ import errno
 import logging
 import bb
 import bb.msg
-from commands import getstatusoutput
+from subprocess import getstatusoutput
 
 logger = logging.getLogger("BitBake.Util")
 
@@ -75,9 +75,9 @@ def vercmp_part(a, b):
         if ca == None and cb == None:
             return 0
 
-        if isinstance(ca, basestring):
+        if isinstance(ca, str):
             sa = ca in separators
-        if isinstance(cb, basestring):
+        if isinstance(cb, str):
             sb = cb in separators
         if sa and not sb:
             return -1
@@ -469,7 +469,7 @@ def filter_environment(good_vars):
     """
 
     removed_vars = []
-    for key in os.environ.keys():
+    for key in list(os.environ.keys()):
         if key in good_vars:
             continue
 
@@ -500,7 +500,7 @@ def empty_environment():
     """
     Remove all variables from the environment.
     """
-    for s in os.environ.keys():
+    for s in list(os.environ.keys()):
         os.unsetenv(s)
         del os.environ[s]
 

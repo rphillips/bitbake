@@ -47,7 +47,7 @@ class DebugLevel(dict):
 
 def _NamedTuple(name, fields):
     Tuple = collections.namedtuple(name, " ".join(fields))
-    return Tuple(*range(len(fields)))
+    return Tuple(*list(range(len(fields))))
 
 domain = _NamedTuple("Domain", (
     "Default",
@@ -71,7 +71,7 @@ debug_level = DebugLevel()
 #
 
 def set_debug_level(level):
-    for log in loggers.itervalues():
+    for log in loggers.values():
         log.setLevel(logging.NOTSET)
 
     if level:

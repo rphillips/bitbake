@@ -216,7 +216,7 @@ class BuildManager (gobject.GObject):
 
     def update_build_result (self, result, iter):
         # Convert the date into something we can sort by.
-        date = long (time.mktime (result.date.timetuple()))
+        date = int (time.mktime (result.date.timetuple()))
 
         # Add a top level entry for the build
 
@@ -367,7 +367,7 @@ class BuildManager (gobject.GObject):
         # Add a row to the model representing this ongoing build. It's kinda a
         # fake entry. If this build completes or fails then this gets updated
         # with the real stuff like the historic builds
-        date = long (time.time())
+        date = int (time.time())
         self.model.append (None, (ident, conf.image, conf.machine, conf.distro,
             None, date, BuildResult.STATE_ONGOING))
         try:

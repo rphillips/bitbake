@@ -20,7 +20,7 @@
 
 import gobject
 import gtk
-import xmlrpclib
+import xmlrpc.client
 from bb.ui.crumbs.runningbuild import RunningBuildTreeView, RunningBuild
 
 def event_handle_idle_func (eventHandler, build):
@@ -62,8 +62,8 @@ def init (server, eventHandler):
         if ret != True:
             print("Couldn't get default commandline! %s" % ret)
             return 1
-    except xmlrpclib.Fault as x:
-        print("XMLRPC Fault getting commandline:\n %s" % x)
+    except xmlrpc.client.Fault as x:
+        print(("XMLRPC Fault getting commandline:\n %s" % x))
         return 1
 
     # Use a timeout function for probing the event queue to find out if we

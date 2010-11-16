@@ -32,13 +32,13 @@
 """
 
 import bb
-import xmlrpclib, sys
+import xmlrpc.client, sys
 from bb import daemonize
 from bb.ui import uievent
 
 DEBUG = False
 
-from SimpleXMLRPCServer import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
+from xmlrpc.server import SimpleXMLRPCServer, SimpleXMLRPCRequestHandler
 import inspect, select
 
 if sys.hexversion < 0x020600F0:
@@ -54,7 +54,7 @@ class BitBakeServerCommands():
         """
         Register a remote UI Event Handler
         """
-        s = xmlrpclib.Server("http://%s:%d" % (host, port), allow_none=True)
+        s = xmlrpc.client.Server("http://%s:%d" % (host, port), allow_none=True)
         return bb.event.register_UIHhandler(s)
 
     def unregisterEventHandler(self, handlerNum):
@@ -169,7 +169,7 @@ class BitBakeServerFork():
 
 class BitBakeServerConnection():
     def __init__(self, serverinfo):
-        self.connection = xmlrpclib.Server("http://%s:%s" % (serverinfo.host, serverinfo.port),  allow_none=True)
+        self.connection = xmlrpc.client.Server("http://%s:%s" % (serverinfo.host, serverinfo.port),  allow_none=True)
         self.events = uievent.BBUIEventQueue(self.connection)
         for event in bb.event.ui_queue:
             self.events.queue_event(event)

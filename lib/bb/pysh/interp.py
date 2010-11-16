@@ -23,7 +23,7 @@ Most references are made to "The Open Group Base Specifications Issue 6".
 # TODO: test for binary output everywhere
 # BUG: debug-parsing does not pass log file to PLY. Maybe a PLY upgrade is necessary.
 import base64
-import cPickle as pickle
+import pickle as pickle
 import errno
 import glob
 import os
@@ -31,6 +31,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from functools import reduce
 
 try:
     s = set()
@@ -38,10 +39,10 @@ try:
 except NameError:
     from Set import Set as set
 
-import builtin
-from sherrors import *
-import pyshlex
-import pyshyacc
+from . import builtin
+from .sherrors import *
+from . import pyshlex
+from . import pyshyacc
 
 def mappend(func, *args, **kargs):
     """Like map but assume func returns a list. Returned lists are merged into
@@ -195,7 +196,7 @@ class Redirections:
         
     def close(self):
         if self._descriptors is not None:
-            for desc in self._descriptors.itervalues():
+            for desc in self._descriptors.values():
                 desc.flush()
                 desc.close()
             self._descriptors = None
@@ -211,7 +212,7 @@ class Redirections:
             
     def clone(self):
         clone = Redirections()
-        for desc, fileobj in self._descriptors.iteritems():
+        for desc, fileobj in self._descriptors.items():
             clone._descriptors[desc] = fileobj.dup()
         return clone
            
@@ -248,7 +249,7 @@ class Redirections:
                     raise NotImplementedError('cannot open absolute path %s' % repr(filename))
             else:
                 f = file(filename, mode+'b')
-        except IOError, e:
+        except IOError as e:
             raise RedirectionError(str(e))
             
         wrapper = None
@@ -304,7 +305,7 @@ class Redirections:
 
     def __str__(self):
         names = [('%d=%r' % (k, getattr(v, 'name', None))) for k,v
-                 in self._descriptors.iteritems()]
+                 in self._descriptors.items()]
         names = ','.join(names)
         return 'Redirections(%s)' % names
 
@@ -368,7 +369,7 @@ def resolve_shebang(path, ignoreshell=False):
         if arg is None:
             return [cmd, win32_to_unix_path(path)]
         return [cmd, arg, win32_to_unix_path(path)]
-    except IOError, e:
+    except IOError as e:
         if  e.errno!=errno.ENOENT and \
             (e.errno!=errno.EPERM and not os.path.isdir(path)): # Opening a directory raises EPERM
             raise
@@ -411,9 +412,9 @@ class Environment:
         
         self._functions = {}        
         self._env = {'?': '0', '#': '0'}
-        self._exported = set([
+        self._exported = {
             'HOME', 'IFS', 'PATH'
-        ])
+        }
         
         # Set environment vars with side-effects
         self._ifs_ws = None     # Set of IFS whitespace characters
@@ -425,7 +426,7 @@ class Environment:
     def clone(self, subshell=False):
         env = Environment(self['PWD'])
         env._opt = set(self._opt)
-        for k,v in self.get_variables().iteritems():
+        for k,v in self.get_variables().items():
             if k in self._exported:
                 env.export(k,v)
             elif subshell:
@@ -474,7 +475,7 @@ class Environment:
         """
         # Save and remove previous arguments
         prevargs = []        
-        for i in xrange(int(self._env['#'])):
+        for i in range(int(self._env['#'])):
             i = str(i+1)
             prevargs.append(self._env[i])
             del self._env[i]
@@ -488,7 +489,7 @@ class Environment:
         return prevargs
         
     def get_positional_args(self):
-        return [self._env[str(i+1)] for i in xrange(int(self._env['#']))]
+        return [self._env[str(i+1)] for i in range(int(self._env['#']))]
         
     def get_variables(self):
         return dict(self._env)
@@ -562,7 +563,7 @@ class Environment:
         
        
 name_charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
-name_charset = dict(zip(name_charset,name_charset))
+name_charset = dict(list(zip(name_charset,name_charset)))
            
 def match_name(s):
     """Return the length in characters of the longest prefix made of name
@@ -720,8 +721,9 @@ class Interpreter:
                 redirs.add(self, io.op, io.filename, io.io_number)
             else:
                 redirs.add_here_document(self, io.name, io.content, io.io_number)
-                    
-        map(add_redir, ios)
+                
+        for io in ios:
+            add_redir(io)
         return redirs
             
     def execute_script(self, script=None, ast=None, sourced=False,
@@ -747,7 +749,7 @@ class Interpreter:
             for cmd in cmds:
                 try:
                     status = self.execute(cmd)
-                except ExitSignal, e:
+                except ExitSignal as e:
                     if sourced:
                         raise
                     status = int(e.args[0])
@@ -758,15 +760,15 @@ class Interpreter:
                 if 'debug-utility' in self._debugflags or 'debug-cmd' in self._debugflags:
                     self.log('returncode ' + str(status)+ '\n')
             return status
-        except CommandNotFound, e:
-            print >>self._redirs.stderr, str(e)
+        except CommandNotFound as e:
+            print(str(e), file=self._redirs.stderr)
             self._redirs.stderr.flush()
             # Command not found by non-interactive shell
             # return 127
             raise
-        except RedirectionError, e:
+        except RedirectionError as e:
             # TODO: should be handled depending on the utility status
-            print >>self._redirs.stderr, str(e)
+            print(str(e), file=self._redirs.stderr)
             self._redirs.stderr.flush()
             # Command not found by non-interactive shell
             # return 127
@@ -861,7 +863,7 @@ class Interpreter:
             
     def _execute_while_clause(self, while_clause, redirs):
         status = 0
-        while 1:
+        while True:
             cond_status = 0
             for cond in while_clause.condition:
                 cond_status = self.execute(cond, redirs)
@@ -948,7 +950,7 @@ class Interpreter:
                     status = self.execute(func, redirs)
                 finally:
                     redirs.close()
-            except ReturnSignal, e:
+            except ReturnSignal as e:
                 status = int(e.args[0])
                 env['?'] = status
             return status
@@ -1044,7 +1046,7 @@ class Interpreter:
                 
         except ReturnSignal:
             raise
-        except ShellError, e:
+        except ShellError as e:
             if is_special or isinstance(e, (ExitSignal,
                                             ShellSyntaxError, ExpansionError)):
                 raise e
@@ -1058,14 +1060,14 @@ class Interpreter:
         of expanded words.
         """
         status, wtrees = self._expand_word(word)
-        return map(pyshlex.wordtree_as_string, wtrees)
+        return list(map(pyshlex.wordtree_as_string, wtrees))
         
     def expand_variable(self, word):
         """Return a status code (or None if no command expansion occurred)
         and a single word.
         """
         status, wtrees = self._expand_word(word, pathname=False, split=False)
-        words = map(pyshlex.wordtree_as_string, wtrees)
+        words = list(map(pyshlex.wordtree_as_string, wtrees))
         assert len(words)==1
         return status, words[0]
         
@@ -1075,7 +1077,7 @@ class Interpreter:
         """
         status, wtrees = self._expand_word(word, pathname=False,
                                            split=False, here_document=True)
-        words = map(pyshlex.wordtree_as_string, wtrees)
+        words = list(map(pyshlex.wordtree_as_string, wtrees))
         assert len(words)==1
         return words[0]
         
@@ -1131,7 +1133,7 @@ class Interpreter:
         if pathname:
             wtrees = mappend(self._expand_pathname, wtrees)
         
-        wtrees = map(self._remove_quotes, wtrees)
+        wtrees = list(map(self._remove_quotes, wtrees))
         return status, wtrees
         
     def _expand_command(self, wtree):

@@ -83,7 +83,7 @@ class DataSmart(MutableMapping):
             value = utils.better_eval(codeobj, DataDict(self, d=self))
             return str(value)
 
-        if not isinstance(s, basestring): # sanity check
+        if not isinstance(s, str): # sanity check
             return s
 
         if varname and varname in self.expand_cache:

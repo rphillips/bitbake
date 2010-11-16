@@ -20,7 +20,7 @@
 import gobject
 import gtk
 import threading
-import xmlrpclib
+import xmlrpc.client
 
 # Package Model
 (COL_PKG_NAME) = (0)
@@ -207,8 +207,8 @@ def init(server, eventHandler):
         if ret != True:
             print("Couldn't run command! %s" % ret)
             return
-    except xmlrpclib.Fault as x:
-        print("XMLRPC Fault getting commandline:\n %s" % x)
+    except xmlrpc.client.Fault as x:
+        print(("XMLRPC Fault getting commandline:\n %s" % x))
         return
 
     shutdown = 0

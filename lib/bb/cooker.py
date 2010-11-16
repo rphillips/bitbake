@@ -22,11 +22,11 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-from __future__ import print_function
+
 import sys, os, glob, os.path, re, time
 import logging
 import sre_constants
-from cStringIO import StringIO
+from io import StringIO
 from contextlib import closing
 import bb
 from bb import utils, data, parse, event, cache, providers, taskdata, command, runqueue
@@ -234,7 +234,7 @@ class BBCooker:
         if fn:
             try:
                 envdata = self.bb_cache.loadDataFull(fn, self.get_file_appends(fn), self.configuration.data)
-            except Exception, e:
+            except Exception as e:
                 parselog.exception("Unable to read %s", fn)
                 raise
 

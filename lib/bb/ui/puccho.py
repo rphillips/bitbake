@@ -22,7 +22,7 @@ import gtk
 import gobject
 import gtk.glade
 import threading
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import os
 import contextlib
 
@@ -78,7 +78,7 @@ class MetaDataLoader(gobject.GObject):
         def run (self):
             result = {}
             try:
-                with contextlib.closing (urllib2.urlopen (self.url)) as f:
+                with contextlib.closing (urllib.request.urlopen (self.url)) as f:
                     # Parse the metadata format. The format is....
                     # <machine>;<default distro>|<distro>...;<default image>|<image>...;<type##url>|...
                     for line in f:

@@ -20,7 +20,7 @@ except NameError:
     from Set import Set as set
 
 from ply import lex
-from sherrors import *
+from .sherrors import *
 
 class NeedMore(Exception):
     pass
@@ -126,8 +126,8 @@ class WordLexer:
     
     #Characters which can be escaped depends on the current delimiters
     ESCAPABLE = {
-        '`': set(['$', '\\', '`']),
-        '"': set(['$', '\\', '`', '"']),
+        '`': {'$', '\\', '`'},
+        '"': {'$', '\\', '`', '"'},
         "'": set(),
     }
         
@@ -302,7 +302,7 @@ class WordLexer:
         stack = self._stack
         recurse = False
     
-        while 1:
+        while True:
             if not stack or recurse:
                 if not buf:
                     raise NeedMore()
@@ -375,7 +375,7 @@ def make_wordtree(token, here_document=False):
     if not here_document:
         delimiters += '\'"'
     
-    while 1:
+    while True:
         pos, sep = find_chars(remaining, delimiters)
         if pos==-1:
             tree += [remaining, '']
@@ -448,7 +448,7 @@ class HereDocLexer:
         return token, remaining
     
     def _parse(self, eof):
-        while 1:
+        while True:
             #Look for first unescaped newline. Quotes may be ignored
             escaped = False
             for i,c in enumerate(self._buffer):
@@ -647,7 +647,7 @@ class Lexer:
     def _parse_op(self, eof):
         assert self._token
         
-        while 1:
+        while True:
             if self._pos>=len(self._input):
                 if not eof:
                     raise NeedMore()
@@ -667,7 +667,7 @@ class Lexer:
                 break
                 
     def _parse_comment(self):
-        while 1:
+        while True:
             if self._pos>=len(self._input):
                 raise NeedMore()
                 
@@ -833,9 +833,9 @@ tokens = [
 ]            
 
 #Add specific operators
-tokens += _OPERATORS.values()
+tokens += list(_OPERATORS.values())
 #Add reserved words
-tokens += _RESERVEDS.values()
+tokens += list(_RESERVEDS.values())
             
 class PLYLexer(Lexer):
     """Bridge Lexer and PLY lexer interface."""
@@ -878,7 +878,7 @@ def get_tokens(s):
     lexer = PLYLexer()
     untouched = lexer.add(s, True) 
     tokens = []
-    while 1:
+    while True:
         token = lexer.token()
         if token is None:
             break
