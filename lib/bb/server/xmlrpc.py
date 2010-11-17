@@ -126,7 +126,7 @@ class BitBakeServer(SimpleXMLRPCServer):
             self.handle_request()
             #print "Idle timeout, running idle functions"
             nextsleep = None
-            for function, data in self._idlefuns.items():
+            for function, data in list(self._idlefuns.items()):
                 try:
                     retval = function(self, data, False)
                     if retval is False:
@@ -149,7 +149,7 @@ class BitBakeServer(SimpleXMLRPCServer):
                 nextsleep = 0
             self.timeout = nextsleep
         # Tell idle functions we're exiting
-        for function, data in self._idlefuns.items():
+        for function, data in list(self._idlefuns.items()):
             try:
                 retval = function(self, data, True)
             except:

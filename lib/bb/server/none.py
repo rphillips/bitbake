@@ -123,7 +123,7 @@ class BitBakeServer():
         #print "Idle timeout, running idle functions"
         #if len(self._idlefuns) == 0:
         nextsleep = delay
-        for function, data in self._idlefuns.items():
+        for function, data in list(self._idlefuns.items()):
             try:
                 retval = function(self, data, False)
                 #print "Idle function returned %s" % (retval)
@@ -147,7 +147,7 @@ class BitBakeServer():
 
     def server_exit(self):
         # Tell idle functions we're exiting
-        for function, data in self._idlefuns.items():
+        for function, data in list(self._idlefuns.items()):
             try:
                 retval = function(self, data, True)
             except:
