@@ -999,11 +999,12 @@ class CookerParser(object):
             return False
         elif not self.started:
             self.started = True
-            bb.event.fire(bb.event.ParseStarted(self.total, self.skipped, self.masked),
-                          self.cfgdata)
+            
             return True
         elif not self.bb_cache:
             self.bb_cache = bb.cache.Cache(self.cfgdata)
+            bb.event.fire(bb.event.ParseStarted(self.total, self.skipped, self.masked),
+                          self.cfgdata)
             self.launch_processes()
             return True
 
@@ -1030,11 +1031,7 @@ class CookerParser(object):
                 self.cached += 1
             self.virtuals += len(result)
 
-<<<<<<< HEAD
-            for virtualfn, info in infos:
-=======
             for virtualfn, info in result:
->>>>>>> upstream/parallel-parsing
                 if info.skipped:
                     self.skipped += 1
                 else:

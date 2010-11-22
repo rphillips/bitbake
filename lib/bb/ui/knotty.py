@@ -33,6 +33,9 @@ logger = logging.getLogger("BitBake")
 widgets = ['Parsing recipes: ', progressbar.Percentage(), ' ',
            progressbar.Bar()]
 
+cache_widgets = ['Loading Cache: ', progressbar.Percentage(), ' ',
+           progressbar.Bar(), ' ', progressbar.ETA()]
+           
 class BBLogFormatter(logging.Formatter):
     """Formatter which ensures that our 'plain' messages (logging.INFO + 1) are used as is"""
 
@@ -78,6 +81,7 @@ def init(server, eventHandler):
         return 1
 
     pbar = None
+    cache_bar = None
     interactive = os.isatty(sys.stdout.fileno())
     shutdown = 0
     return_value = 0
@@ -152,6 +156,28 @@ def init(server, eventHandler):
                     sys.stdout.flush()
                 print(("\nParsing of %d .bb files complete (%d cached, %d parsed). %d targets, %d skipped, %d masked, %d errors."
                     % ( event.total, event.cached, event.parsed, event.virtuals, event.skipped, event.masked, event.errors)))
+                continue
+
+            if isinstance(event, bb.event.CacheLoadStarted):
+                #import pdb; pdb.set_trace()
+                if interactive:
+                    cache_bar = progressbar.ProgressBar(widgets=cache_widgets,
+                                                   maxval=event.total).start()
+                else:
+                    sys.stdout.write("Loading Cache...")
+                    sys.stdout.flush()
+                continue
+            if isinstance(event, bb.event.CacheLoadProgress):
+                if interactive:
+                    cache_bar.update(event.current)
+                continue
+            if isinstance(event, bb.event.ParseCompleted):
+                if interactive:
+                    cache_bar.update(event.total)
+                else:
+                    sys.stdout.write("done.\n")
+                    sys.stdout.flush()
+                print("\nLoaded %d entries from dependency cache." % event.total)
                 continue
 
             if isinstance(event, bb.command.CookerCommandCompleted):

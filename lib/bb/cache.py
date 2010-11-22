@@ -169,15 +169,39 @@ class Cache(object):
 
         if bb.parse.cached_mtime_noerror(self.cachefile) >= newest_mtime:
             try:
-                p = pickle.Unpickler(file(self.cachefile, "rb"))
-                self.depends_cache, version_data = p.load()
+                f = file(self.cachefile, "rb")
+                num_cached = pickle.load(f)
+                #logger.info("Loading %d cache entries" % num_cached)
+
+                version_data = pickle.load(f)
                 if version_data['CACHE_VER'] != __cache_version__:
                     raise ValueError('Cache Version Mismatch')
                 if version_data['BITBAKE_VER'] != bb.__version__:
                     raise ValueError('Bitbake Version Mismatch')
+
+                # The framework is in place for cache loading progress events, but
+                # this is still single threaded, so the events are never reflected
+                # on the UI yet.
+                #
+                # @todo figure out how to make this threaded so the UI can run
+                current_item = 0
+                bb.event.fire(bb.event.CacheLoadStarted(num_cached), current_item)
+                
+                while 1:
+                    k = pickle.load(f)
+                    v = pickle.load(f)
+                    self.depends_cache[k] = v
+                    current_item += 1
+                    if current_item % 100 == 0:
+                        bb.event.fire(bb.event.CacheLoadProgress(current_item), current_item)
+
+                bb.event.fire(bb.event.CacheLoadCompleted(num_cached), current_item)
+
             except EOFError:
-                logger.info("Truncated cache found, rebuilding...")
-                self.depends_cache = {}
+                # Not all EOFErrors mean the cache is truncated
+                if num_cached != len(self.depends_cache):
+                    logger.info("Truncated cache found, rebuilding...")
+                    self.depends_cache = {}
             except:
                 logger.info("Invalid cache found, rebuilding...")
                 self.depends_cache = {}
@@ -396,9 +420,13 @@ class Cache(object):
             'BITBAKE_VER': bb.__version__,
         }
 
+        # save the cache in pieces to allow showing progress info while loading
         with open(self.cachefile, "wb") as cachefile:
-            pickle.Pickler(cachefile, -1).dump([self.depends_cache,
-                                                version_data])
+            pickle.dump(len(self.depends_cache), cachefile, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(version_data, cachefile, pickle.HIGHEST_PROTOCOL)
+            for k, v in self.depends_cache.iteritems():
+                pickle.dump(k, cachefile, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(v, cachefile, pickle.HIGHEST_PROTOCOL)
 
         del self.depends_cache
 
