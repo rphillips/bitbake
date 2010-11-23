@@ -221,9 +221,9 @@ class BBCooker:
             bb.data.update_data(localdata)
             bb.data.expandKeys(localdata)
 
-            taskdata = bb.taskdata.TaskData(self.configuration.abort)
-            taskdata.add_provider(localdata, self.status, pkgs_to_build[0])
-            taskdata.add_unresolved(localdata, self.status)
+            taskdata = bb.taskdata.TaskData(self.status, self.configuration.abort)
+            taskdata.add_provider(localdata, pkgs_to_build[0])
+            taskdata.add_unresolved(localdata)
 
             targetid = taskdata.getbuild_id(pkgs_to_build[0])
             fnid = taskdata.build_targets[targetid][0]
@@ -267,13 +267,13 @@ class BBCooker:
         localdata = data.createCopy(self.configuration.data)
         bb.data.update_data(localdata)
         bb.data.expandKeys(localdata)
-        taskdata = bb.taskdata.TaskData(self.configuration.abort)
+        taskdata = bb.taskdata.TaskData(self.status, self.configuration.abort)
 
         runlist = []
         for k in pkgs_to_build:
-            taskdata.add_provider(localdata, self.status, k)
+            taskdata.add_provider(localdata, k)
             runlist.append([k, "do_%s" % task])
-        taskdata.add_unresolved(localdata, self.status)
+        taskdata.add_unresolved(localdata)
 
         rq = bb.runqueue.RunQueue(self, self.configuration.data, self.status, taskdata, runlist)
         rq.prepare_runqueue()
@@ -659,8 +659,8 @@ class BBCooker:
             bb.build.del_stamp('do_%s' % task, self.status, fn)
 
         # Setup taskdata structure
-        taskdata = bb.taskdata.TaskData(self.configuration.abort)
-        taskdata.add_provider(self.configuration.data, self.status, item)
+        taskdata = bb.taskdata.TaskData(self.status, self.configuration.abort)
+        taskdata.add_provider(self.configuration.data, item)
 
         buildname = bb.data.getVar("BUILDNAME", self.configuration.data)
         bb.event.fire(bb.event.BuildStarted(buildname, [item]), self.configuration.event_data)
@@ -735,13 +735,13 @@ class BBCooker:
         bb.data.update_data(localdata)
         bb.data.expandKeys(localdata)
 
-        taskdata = bb.taskdata.TaskData(self.configuration.abort)
+        taskdata = bb.taskdata.TaskData(self.status, self.configuration.abort)
 
         runlist = []
         for k in targets:
-            taskdata.add_provider(localdata, self.status, k)
+            taskdata.add_provider(localdata, k)
             runlist.append([k, "do_%s" % task])
-        taskdata.add_unresolved(localdata, self.status)
+        taskdata.add_unresolved(localdata)
 
         rq = bb.runqueue.RunQueue(self, self.configuration.data, self.status, taskdata, runlist)
 

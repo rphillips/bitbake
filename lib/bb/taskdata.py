@@ -41,7 +41,7 @@ class TaskData:
     """
     BitBake Task Data implementation
     """
-    def __init__(self, abort = True, tryaltconfigs = False):
+    def __init__(self, cachedata, abort = True, tryaltconfigs = False):
         self.build_names_index = []
         self.run_names_index = []
         self.fn_index = []
@@ -67,6 +67,7 @@ class TaskData:
         self.failed_rdeps = []
         self.failed_fnids = []
 
+        self.cachedata = cachedata
         self.abort = abort
         self.tryaltconfigs = tryaltconfigs
 
@@ -141,12 +142,12 @@ class TaskData:
 
         return listid
 
-    def add_tasks(self, fn, dataCache):
+    def add_tasks(self, fn):
         """
         Add tasks for a given fn to the database
         """
 
-        task_deps = dataCache.task_deps[fn]
+        task_deps = self.cachedata.task_deps[fn]
 
         fnid = self.getfn_id(fn)
 
@@ -173,14 +174,14 @@ class TaskData:
                 for dep in task_deps['depends'][task].split():
                     if dep:
                         if ":" not in dep:
-                            bb.msg.fatal(bb.msg.domain.TaskData, "Error, dependency %s does not contain ':' character\n. Task 'depends' should be specified in the form 'packagename:task'" % (dep, fn))
+                            bb.msg.fatal(bb.msg.domain.TaskData, "Error, dependency %s does not contain ':' character\n. Task 'depends' should be specified in the form 'packagename:task'" % dep)
                         ids.append(((self.getbuild_id(dep.split(":")[0])), dep.split(":")[1]))
                 self.tasks_idepends[taskid].extend(ids)
 
         # Work out build dependencies
         if not fnid in self.depids:
             dependids = {}
-            for depend in dataCache.deps[fn]:
+            for depend in self.cachedata.deps[fn]:
                 logger.debug(2, "Added dependency %s for %s", depend, fn)
                 dependids[self.getbuild_id(depend)] = None
             self.depids[fnid] = dependids.keys()
@@ -188,8 +189,8 @@ class TaskData:
         # Work out runtime dependencies
         if not fnid in self.rdepids:
             rdependids = {}
-            rdepends = dataCache.rundeps[fn]
-            rrecs = dataCache.runrecs[fn]
+            rdepends = self.cachedata.rundeps[fn]
+            rrecs = self.cachedata.runrecs[fn]
             for package in rdepends:
                 for rdepend in rdepends[package]:
                     logger.debug(2, "Added runtime dependency %s for %s", rdepend, fn)
@@ -268,14 +269,14 @@ class TaskData:
         if targetid not in self.external_targets:
             self.external_targets.append(targetid)
 
-    def get_unresolved_build_targets(self, dataCache):
+    def get_unresolved_build_targets(self):
         """
         Return a list of build targets who's providers
         are unknown.
         """
         unresolved = []
         for target in self.build_names_index:
-            if re_match_strings(target, dataCache.ignored_dependencies):
+            if re_match_strings(target, self.cachedata.ignored_dependencies):
                 continue
             if self.build_names_index.index(target) in self.failed_deps:
                 continue
@@ -283,14 +284,14 @@ class TaskData:
                 unresolved.append(target)
         return unresolved
 
-    def get_unresolved_run_targets(self, dataCache):
+    def get_unresolved_run_targets(self):
         """
         Return a list of runtime targets who's providers
         are unknown.
         """
         unresolved = []
         for target in self.run_names_index:
-            if re_match_strings(target, dataCache.ignored_dependencies):
+            if re_match_strings(target, self.cachedata.ignored_dependencies):
                 continue
             if self.run_names_index.index(target) in self.failed_rdeps:
                 continue
@@ -348,9 +349,9 @@ class TaskData:
                 dependees.append(self.fn_index[fnid])
         return dependees
 
-    def add_provider(self, cfgData, dataCache, item):
+    def add_provider(self, cfgData, item):
         try:
-            self.add_provider_internal(cfgData, dataCache, item)
+            self.add_provider_internal(cfgData, item)
         except bb.providers.NoProvider:
             if self.abort:
                 raise
@@ -358,26 +359,26 @@ class TaskData:
 
         self.mark_external_target(item)
 
-    def add_provider_internal(self, cfgData, dataCache, item):
+    def add_provider_internal(self, cfgData, item):
         """
         Add the providers of item to the task data
         Mark entries were specifically added externally as against dependencies
         added internally during dependency resolution
         """
 
-        if re_match_strings(item, dataCache.ignored_dependencies):
+        if re_match_strings(item, self.cachedata.ignored_dependencies):
             return
 
-        if not item in dataCache.providers:
+        if not item in self.cachedata.providers:
             bb.event.fire(bb.event.NoProvider(item, dependees=self.get_rdependees_str(item)), cfgData)
             raise bb.providers.NoProvider(item)
 
         if self.have_build_target(item):
             return
 
-        all_p = dataCache.providers[item]
+        all_p = self.cachedata.providers[item]
 
-        eligible, foundUnique = bb.providers.filterProviders(all_p, item, cfgData, dataCache)
+        eligible, foundUnique = bb.providers.filterProviders(all_p, item, cfgData, self.cachedata)
         eligible = [p for p in eligible if not self.getfn_id(p) in self.failed_fnids]
 
         if not eligible:
@@ -388,7 +389,7 @@ class TaskData:
             if item not in self.consider_msgs_cache:
                 providers_list = []
                 for fn in eligible:
-                    providers_list.append(dataCache.pkg_fn[fn])
+                    providers_list.append(self.cachedata.pkg_fn[fn])
                 bb.event.fire(bb.event.MultipleProviders(item, providers_list), cfgData)
             self.consider_msgs_cache.append(item)
 
@@ -398,30 +399,30 @@ class TaskData:
                 continue
             logger.debug(2, "adding %s to satisfy %s", fn, item)
             self.add_build_target(fn, item)
-            self.add_tasks(fn, dataCache)
+            self.add_tasks(fn)
 
 
-            #item = dataCache.pkg_fn[fn]
+            #item = self.cachedata.pkg_fn[fn]
 
-    def add_rprovider(self, cfgData, dataCache, item):
+    def add_rprovider(self, cfgData, item):
         """
         Add the runtime providers of item to the task data
         (takes item names from RDEPENDS/PACKAGES namespace)
         """
 
-        if re_match_strings(item, dataCache.ignored_dependencies):
+        if re_match_strings(item, self.cachedata.ignored_dependencies):
             return
 
         if self.have_runtime_target(item):
             return
 
-        all_p = bb.providers.getRuntimeProviders(dataCache, item)
+        all_p = bb.providers.getRuntimeProviders(self.cachedata, item)
 
         if not all_p:
             bb.event.fire(bb.event.NoProvider(item, runtime=True, dependees=self.get_rdependees_str(item)), cfgData)
             raise bb.providers.NoRProvider(item)
 
-        eligible, numberPreferred = bb.providers.filterProvidersRunTime(all_p, item, cfgData, dataCache)
+        eligible, numberPreferred = bb.providers.filterProvidersRunTime(all_p, item, cfgData, self.cachedata)
         eligible = [p for p in eligible if not self.getfn_id(p) in self.failed_fnids]
 
         if not eligible:
@@ -432,7 +433,7 @@ class TaskData:
             if item not in self.consider_msgs_cache:
                 providers_list = []
                 for fn in eligible:
-                    providers_list.append(dataCache.pkg_fn[fn])
+                    providers_list.append(self.cachedata.pkg_fn[fn])
                 bb.event.fire(bb.event.MultipleProviders(item, providers_list, runtime=True), cfgData)
             self.consider_msgs_cache.append(item)
 
@@ -440,7 +441,7 @@ class TaskData:
             if item not in self.consider_msgs_cache:
                 providers_list = []
                 for fn in eligible:
-                    providers_list.append(dataCache.pkg_fn[fn])
+                    providers_list.append(self.cachedata.pkg_fn[fn])
                 bb.event.fire(bb.event.MultipleProviders(item, providers_list, runtime=True), cfgData)
             self.consider_msgs_cache.append(item)
 
@@ -451,7 +452,7 @@ class TaskData:
                 continue
             logger.debug(2, "adding '%s' to satisfy runtime '%s'", fn, item)
             self.add_runtime_target(fn, item)
-            self.add_tasks(fn, dataCache)
+            self.add_tasks(fn)
 
     def fail_fnid(self, fnid, missing_list = []):
         """
@@ -516,25 +517,25 @@ class TaskData:
         for fnid in dependees:
             self.fail_fnid(fnid, missing_list)
 
-    def add_unresolved(self, cfgData, dataCache):
+    def add_unresolved(self, cfgData):
         """
         Resolve all unresolved build and runtime targets
         """
         logger.info("Resolving any missing task queue dependencies")
         while True:
             added = 0
-            for target in self.get_unresolved_build_targets(dataCache):
+            for target in self.get_unresolved_build_targets():
                 try:
-                    self.add_provider_internal(cfgData, dataCache, target)
+                    self.add_provider_internal(cfgData, target)
                     added = added + 1
                 except bb.providers.NoProvider:
                     targetid = self.getbuild_id(target)
                     if self.abort and targetid in self.external_targets:
                         raise
                     self.remove_buildtarget(targetid)
-            for target in self.get_unresolved_run_targets(dataCache):
+            for target in self.get_unresolved_run_targets():
                 try:
-                    self.add_rprovider(cfgData, dataCache, target)
+                    self.add_rprovider(cfgData, target)
                     added = added + 1
                 except bb.providers.NoRProvider:
                     self.remove_runtarget(self.getrun_id(target))
