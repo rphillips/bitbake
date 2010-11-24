@@ -338,7 +338,7 @@ class CacheLoadProgress(Event):
 
 class CacheLoadCompleted(Event):
     """Cache loading is complete"""
-    def __init__(self, current):
+    def __init__(self, total):
         Event.__init__(self)
         self.total = total
 

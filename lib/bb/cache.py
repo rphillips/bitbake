@@ -167,6 +167,7 @@ class Cache(object):
         old_mtimes.append(newest_mtime)
         newest_mtime = max(old_mtimes)
 
+        num_cached = 0
         if bb.parse.cached_mtime_noerror(self.cachefile) >= newest_mtime:
             try:
                 f = file(self.cachefile, "rb")
@@ -195,13 +196,13 @@ class Cache(object):
                     if current_item % 100 == 0:
                         bb.event.fire(bb.event.CacheLoadProgress(current_item), current_item)
 
-                bb.event.fire(bb.event.CacheLoadCompleted(num_cached), current_item)
-
             except EOFError:
                 # Not all EOFErrors mean the cache is truncated
                 if num_cached != len(self.depends_cache):
                     logger.info("Truncated cache found, rebuilding...")
                     self.depends_cache = {}
+                else:
+                    bb.event.fire(bb.event.CacheLoadCompleted(num_cached), current_item)
             except:
                 logger.info("Invalid cache found, rebuilding...")
                 self.depends_cache = {}

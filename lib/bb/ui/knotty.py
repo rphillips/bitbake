@@ -34,7 +34,7 @@ widgets = ['Parsing recipes: ', progressbar.Percentage(), ' ',
            progressbar.Bar()]
 
 cache_widgets = ['Loading Cache: ', progressbar.Percentage(), ' ',
-           progressbar.Bar(), ' ', progressbar.ETA()]
+           progressbar.Bar()]
            
 class BBLogFormatter(logging.Formatter):
     """Formatter which ensures that our 'plain' messages (logging.INFO + 1) are used as is"""
@@ -171,7 +171,7 @@ def init(server, eventHandler):
                 if interactive:
                     cache_bar.update(event.current)
                 continue
-            if isinstance(event, bb.event.ParseCompleted):
+            if isinstance(event, bb.event.CacheLoadCompleted):
                 if interactive:
                     cache_bar.update(event.total)
                 else:
