@@ -28,7 +28,7 @@ import logging
 import progressbar
 from bb import ui
 from bb.ui import uihelper
-
+import Queue
 logger = logging.getLogger("BitBake")
 widgets = ['Parsing recipes: ', progressbar.Percentage(), ' ',
            progressbar.Bar()]
@@ -83,9 +83,11 @@ def init(server, eventHandler):
     return_value = 0
     while True:
         try:
-            event = eventHandler.waitEvent(0.25)
-            if event is None:
+            try:
+                event = eventHandler.get(1)
+            except Queue.Empty:
                 continue
+
             helper.eventHandler(event)
             if isinstance(event, bb.runqueue.runQueueExitWait):
                 if not shutdown:

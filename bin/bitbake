@@ -36,12 +36,22 @@ import bb.msg
 from bb import cooker
 from bb import ui
 from bb import server
-from bb.server import none
+from bb.server.process import ProcessServer
 #from bb.server import xmlrpc
+
+from multiprocessing import Queue, Pipe
 
 __version__ = "1.11.0"
 logger = logging.getLogger("BitBake")
 
+class ServerCommunicator():
+    def __init__(self, connection):
+        self.connection = connection
+
+    def runCommand(self, command):
+        # @todo try/except
+        self.connection.send(command)
+        return self.connection.recv()
 
 #============================================================================#
 # BBOptions
@@ -167,8 +177,6 @@ Default BBFILES are the .bb files in the current directory.""")
     loghandler = event.LogHandler()
     logger.addHandler(loghandler)
 
-    #server = bb.server.xmlrpc
-    server = bb.server.none
 
     # Save a logfile for cooker into the current working directory. When the
     # server is daemonized this logfile will be truncated.
@@ -182,19 +190,19 @@ Default BBFILES are the .bb files in the current directory.""")
     # of the UIs (e.g. for DISPLAY, etc.)
     bb.utils.clean_environment()
 
-    cooker = bb.cooker.BBCooker(configuration, server)
 
-    cooker.parseCommandLine()
+    # establish communication channels.  We use bidirectional pipes for
+    # ui <--> server command/response pairs
+    # and a qeueue for server -> ui event notifications
+    #
+    ui_channel, server_channel= Pipe()
+    event_queue = Queue()
 
-    serverinfo = server.BitbakeServerInfo(cooker.server)
-
-    server.BitBakeServerFork(serverinfo, cooker.serve, cooker_logfile)
-    del cooker
+    server = ProcessServer(server_channel, event_queue, configuration)
+    server.start()
 
     logger.removeHandler(loghandler)
 
-    # Setup a connection to the server (cooker)
-    serverConnection = server.BitBakeServerConnection(serverinfo)
 
     # Launch the UI
     if configuration.ui:
@@ -212,9 +220,12 @@ Default BBFILES are the .bb files in the current directory.""")
         print("FATAL: Invalid user interface '%s' specified. " % ui)
         print("Valid interfaces are 'ncurses', 'depexp' or the default, 'knotty'.")
     else:
-        return_value = ui_init(serverConnection.connection, serverConnection.events)
+        return_value = ui_init(ServerCommunicator(ui_channel), event_queue)
     finally:
-        serverConnection.terminate()
+        server.stop()
+        ui_channel.close()
+        event_queue.close()
+        server.join()
 
     return return_value
 
