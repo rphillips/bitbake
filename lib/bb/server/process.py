@@ -53,7 +53,7 @@ class BitBakeServerCommands():
 class EventAdapter():
     """
     Adapter to wrap our event queue since the caller (bb.event) expects to
-    call the a send() method, but our actual queue only has send()
+    call a send() method, but our actual queue only has put()
     """
     def __init__(self, queue):
         self.queue = queue
