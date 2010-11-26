@@ -24,32 +24,9 @@ from bb.cooker import BBCooker
 import time
 import bb
 from multiprocessing import Process, Event
+import signal
 
-class BitBakeServerCommands():
-    def __init__(self, server, cooker):
-        self.cooker = cooker
-        self.server = server
 
-    def runCommand(self, command):
-        """
-        Run a cooker command on the server
-        """
-        self.server.command_channel.send(self.cooker.command.runCommand(command))
-
-    def terminateServer(self):
-        """
-        Trigger the server to quit
-        """
-        self.server.stop()
-        #print "Server (cooker) exitting"
-        return
-
-    def ping(self):
-        """
-        Dummy method which can be used to check the server is still alive
-        """
-        return True
- 
 class EventAdapter():
     """
     Adapter to wrap our event queue since the caller (bb.event) expects to
@@ -75,7 +52,6 @@ class ProcessServer(Process):
         self.configuration = configuration
         self.cooker = BBCooker(configuration, self.register_idle_function)
         self._idlefunctions = {}
-        self.commands = BitBakeServerCommands(self, self.cooker)
         self.event_handle = bb.event.register_UIHhandler(self)
         self.quit = False
 
@@ -93,20 +69,24 @@ class ProcessServer(Process):
 
                 
     def run(self):
+        # Ignore SIGINT within the server, as all SIGINT handling is done by
+        # the UI and communicated to us
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         while self.keep_running.is_set():
             if self.command_channel.poll(.001):
                 command = self.command_channel.recv()
-                self.commands.runCommand(command)
+                self.runCommand(command)
 
             self.idle_commands(.1)
-        #while self.cooker.parser.bb_cache.depends_cache is not None:
-        #    print("waiting for cache sync")
-        #    time.sleep(.25)
+
+        bb.event.unregister_UIHhandler(self.event_handle)
+        self.command_channel.close()
+        self.cooker.finalize()
         return
 
 
     def idle_commands(self, delay):
-        #print "Idle queue length %s" % len(self._idlefunctions)
+        #print ("Idle queue length %s, delay" % len(self._idlefunctions), delay)
         nextsleep = delay
 
         for function, data in self._idlefunctions.items():
@@ -131,8 +111,11 @@ class ProcessServer(Process):
             #print "Sleeping for %s (%s)" % (nextsleep, delay)
             time.sleep(nextsleep)
 
+    def runCommand(self, command):
+        """
+        Run a cooker command on the server
+        """
+        self.command_channel.send(self.cooker.command.runCommand(command))
 
     def stop(self):
         self.keep_running.clear()
-        bb.event.unregister_UIHhandler(self.event_handle)
-        self.command_channel.close()

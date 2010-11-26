@@ -118,6 +118,8 @@ class BBCooker:
         self.cookerState = cookerClean
         self.cookerAction = cookerRun
 
+        self.parser = None
+
     def parseConfiguration(self):
 
 
@@ -900,7 +902,28 @@ class BBCooker:
             return self.appendlist[f]
         return []
 
-  
+    def shutdown(self):
+        self.cookerAction = cookerShutdown
+
+    def stop(self):
+        self.cookerAction = cookerStop
+        # @todo See if we should fix this.  This will attempt to shut down the
+        # parser if the user hits ^c twice.  Currently it causes some issues,
+        # so it's disabled for now.  To really force a stop, the user can
+        # always just press ^c a third time to force the exit.  The issue
+        # that arises is IO errors about "handle out of range in select()"
+        #if self.cookerState == cookerParsing:
+        #    print("cooker stop calling parser shutdown")
+        #    self.parser.shutdown(False)
+
+    def finalize(self):
+        # Make sure to let the cache sync finish.  This generally is only an
+        # issue when we run bitbake -p, as there are no tasks to run after
+        # parsing so the main server wants to exit quickly.
+        if self.parser is not None and self.parser.sync_thread is not None and \
+           self.parser.sync_thread.is_alive():
+            self.parser.sync_thread.join()
+
 class CookerExit(bb.event.Event):
     """
     Notify clients of the Cooker shutdown
@@ -934,6 +957,7 @@ class CookerParser(object):
         self.progress_chunk = self.total / 100
         self.num_processes = int(self.cfgdata.getVar("BB_NUMBER_PARSE_THREADS", True) or
                                  multiprocessing.cpu_count())
+        self.sync_thread = None
 
     def launch_processes(self):
         self.task_queue = multiprocessing.Queue()
@@ -963,6 +987,7 @@ class CookerParser(object):
                                               args=(self.task_queue,
                                                     self.result_queue,
                                                     self.cfgdata))
+            process.daemon = True
             process.start()
             self.processes.append(process)
 
@@ -978,13 +1003,12 @@ class CookerParser(object):
         for process in self.processes:
             process.join()
         
-        sync = threading.Thread(target=self.bb_cache.sync)
-        sync.start()
-        #atexit.register(lambda: sync.join())
-        # @todo fix this:
-        # this isn't being waited for by the server, so to force it to work
-        # for now, don't do atexit..
-        sync.join()
+        self.sync_thread = threading.Thread(name="cachesync", target=self.bb_cache.sync)
+        self.sync_thread.start()
+        # atexit currently isn't calling the join, so the server is explicitly
+        # calling a cleanup routine before exiting to enforce cache sync
+        # completion
+        #atexit.register(lambda: self.sync.join())
         if self.error > 0:
             raise ParsingErrorsFound()
 
@@ -1018,9 +1042,6 @@ class CookerParser(object):
                 if isinstance(result, Exception):
                     raise result
                 parsed = True
-        except KeyboardInterrupt:
-            self.shutdown(clean=False)
-            raise
         except Exception as e:
             self.error += 1
             parselog.critical(str(e))

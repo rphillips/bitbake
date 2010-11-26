@@ -123,13 +123,13 @@ class CommandsSync:
         """
         Trigger cooker 'shutdown' mode
         """
-        command.cooker.cookerAction = bb.cooker.cookerShutdown
+        command.cooker.shutdown()
 
     def stateStop(self, command, params):
         """
         Stop the cooker
         """
-        command.cooker.cookerAction = bb.cooker.cookerStop
+        command.cooker.stop()
 
     def getCmdLineAction(self, command, params):
         """
