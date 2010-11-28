@@ -172,7 +172,6 @@ class Cache(object):
             try:
                 f = file(self.cachefile, "rb")
                 num_cached = pickle.load(f)
-                #logger.info("Loading %d cache entries" % num_cached)
 
                 version_data = pickle.load(f)
                 if version_data['CACHE_VER'] != __cache_version__:
@@ -180,11 +179,6 @@ class Cache(object):
                 if version_data['BITBAKE_VER'] != bb.__version__:
                     raise ValueError('Bitbake Version Mismatch')
 
-                # The framework is in place for cache loading progress events, but
-                # this is still single threaded, so the events are never reflected
-                # on the UI yet.
-                #
-                # @todo figure out how to make this threaded so the UI can run
                 current_item = 0
                 bb.event.fire(bb.event.CacheLoadStarted(num_cached), current_item)
                 
