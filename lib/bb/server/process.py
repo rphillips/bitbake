@@ -73,7 +73,7 @@ class ProcessServer(Process):
         # the UI and communicated to us
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         while self.keep_running.is_set():
-            if self.command_channel.poll(.001):
+            if self.command_channel.poll():
                 command = self.command_channel.recv()
                 self.runCommand(command)
 
