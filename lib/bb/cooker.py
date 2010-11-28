@@ -28,7 +28,6 @@ import logging
 import sre_constants
 import threading
 import multiprocessing
-import signal
 import atexit
 from cStringIO import StringIO
 from contextlib import closing
@@ -972,7 +971,6 @@ class CookerParser(object):
                 self.fromcache.append((filename, appends))
 
         def worker(input, output, cfgdata):
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
             for filename, appends in iter(input.get, 'STOP'):
                 try:
                     infos = bb.cache.Cache.parse(filename, appends, cfgdata)
