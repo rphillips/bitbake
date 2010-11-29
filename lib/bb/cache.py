@@ -31,6 +31,7 @@
 import os
 import logging
 from collections import defaultdict, namedtuple
+import bb.parse
 import bb.data
 import bb.utils
 
@@ -389,53 +390,48 @@ def load_bbfile(bbfile, appends, config):
     """
     chdir_back = False
 
-    from bb import data, parse
-
     # expand tmpdir to include this topdir
-    data.setVar('TMPDIR', data.getVar('TMPDIR', config, 1) or "", config)
+    bb.data.setVar('TMPDIR', bb.data.getVar('TMPDIR', config, 1) or "", config)
     bbfile_loc = os.path.abspath(os.path.dirname(bbfile))
     oldpath = os.path.abspath(os.getcwd())
-    parse.cached_mtime_noerror(bbfile_loc)
-    bb_data = data.init_db(config)
+    bb.parse.cached_mtime_noerror(bbfile_loc)
+    bb_data = bb.data.init_db(config)
     # The ConfHandler first looks if there is a TOPDIR and if not
     # then it would call getcwd().
     # Previously, we chdir()ed to bbfile_loc, called the handler
     # and finally chdir()ed back, a couple of thousand times. We now
     # just fill in TOPDIR to point to bbfile_loc if there is no TOPDIR yet.
-    if not data.getVar('TOPDIR', bb_data):
+    if not bb.data.getVar('TOPDIR', bb_data):
         chdir_back = True
-        data.setVar('TOPDIR', bbfile_loc, bb_data)
+        bb.data.setVar('TOPDIR', bbfile_loc, bb_data)
+
     try:
         if appends:
-            data.setVar('__BBAPPEND', " ".join(appends), bb_data)
-        bb_data = parse.handle(bbfile, bb_data)
+            bb.data.setVar('__BBAPPEND', " ".join(appends), bb_data)
+        return bb.parse.handle(bbfile, bb_data)
+    finally:
         if chdir_back:
             os.chdir(oldpath)
-        return bb_data
-    except:
-        if chdir_back:
-            os.chdir(oldpath)
-        raise
 
 def virtualfn2realfn(virtualfn):
     """
-    Convert a virtual file name to a real one + the associated subclass keyword
+    Convert a virtual file name to a real one + the associated variant keyword
     """
 
     fn = virtualfn
-    cls = ""
+    variant = ""
     if virtualfn.startswith('virtual:'):
-        cls = virtualfn.split(':', 2)[1]
-        fn = virtualfn.replace('virtual:' + cls + ':', '')
-    return (fn, cls)
+        variant = virtualfn.split(':', 2)[1]
+        fn = virtualfn.replace('virtual:' + variant + ':', '')
+    return fn, variant
 
-def realfn2virtual(realfn, cls):
+def realfn2virtual(realfn, variant):
     """
-    Convert a real filename + the associated subclass keyword to a virtual filename
+    Convert a real filename + the associated variant keyword to a virtual filename
     """
-    if cls == "":
+    if not variant:
         return realfn
-    return "virtual:" + cls + ":" + realfn
+    return "virtual:" + variant + ":" + realfn
 
 def loadDataFull(virtualfn, appends, cfgData):
     """
@@ -443,12 +439,10 @@ def loadDataFull(virtualfn, appends, cfgData):
     To do this, we need to parse the file.
     """
 
-    (fn, virtual) = virtualfn2realfn(virtualfn)
+    fn, virtual = virtualfn2realfn(virtualfn)
 
-    logger.debug(1, "Parsing %s (full)", fn)
-
-    bb_data = load_bbfile(fn, appends, cfgData)
-    return bb_data[virtual]
+    metadata = load_bbfile(fn, appends, cfgData)
+    return metadata[virtual]
 
 def parse(filename, appends, configdata):
     """Parse the specified filename, returning the recipe information"""
