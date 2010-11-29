@@ -990,7 +990,6 @@ class CookerParser(object):
             self.processes.append(process)
 
     def shutdown(self, clean=True):
-        print("shutting down parser")
         self.result_queue.close()
         for process in self.processes:
             if clean:
