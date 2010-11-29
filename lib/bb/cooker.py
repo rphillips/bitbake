@@ -233,7 +233,7 @@ class BBCooker:
 
         if fn:
             try:
-                envdata = bb.cache.loadDataFull(fn, self.get_file_appends(fn), self.configuration.data)
+                envdata = bb.cache.load_recipe_full(fn, self.get_file_appends(fn), self.configuration.data)
             except Exception, e:
                 parselog.exception("Unable to read %s", fn)
                 raise
@@ -974,7 +974,7 @@ class CookerParser(object):
         self.fromcache = []
         for filename in self.filelist:
             appends = self.cooker.get_file_appends(filename)
-            if not self.bb_cache.cacheValid(filename):
+            if not self.bb_cache.cache_valid(filename):
                 self.task_queue.put((filename, appends))
             else:
                 self.fromcache.append((filename, appends))

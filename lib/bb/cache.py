@@ -205,8 +205,8 @@ class Cache(object):
         Note that if it does parse to obtain the info, it will not
         automatically add the information to the cache or to your
         CacheData.  Use the add or add_info method to do so after
-        running this, or use loadData instead."""
-        cached = self.cacheValid(filename)
+        running this, or use load_recipe instead."""
+        cached = self.cache_valid(filename)
         if cached:
             infos = []
             info = self.depends_cache[filename]
@@ -219,7 +219,7 @@ class Cache(object):
 
         return cached, infos
 
-    def loadData(self, fn, appends, cfgData, cacheData):
+    def load_recipe(self, fn, appends, cfgData, cacheData):
         """Load the recipe info for the specified filename,
         parsing and adding to the cache if necessary, and adding
         the recipe information to the supplied CacheData instance."""
@@ -236,13 +236,13 @@ class Cache(object):
 
         return cached, skipped, virtuals
 
-    def cacheValid(self, fn):
+    def cache_valid(self, fn):
         """
         Is the cache valid for fn?
         Fast version, no timestamps checked.
         """
         if fn not in self.checked:
-            self.cacheValidUpdate(fn)
+            self.cache_valid_update(fn)
 
         # Is cache enabled?
         if not self.has_cache:
@@ -251,7 +251,7 @@ class Cache(object):
             return True
         return False
 
-    def cacheValidUpdate(self, fn):
+    def cache_valid_update(self, fn):
         """
         Is the cache valid for fn?
         Make thorough (slower) checks including timestamps.
@@ -433,7 +433,7 @@ def realfn2virtual(realfn, variant):
         return realfn
     return "virtual:" + variant + ":" + realfn
 
-def loadDataFull(virtualfn, appends, cfgData):
+def load_recipe_full(virtualfn, appends, cfgData):
     """
     Return a complete set of data for fn.
     To do this, we need to parse the file.
