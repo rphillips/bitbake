@@ -1,7 +1,7 @@
 #
 # BitBake Process based server.
 #
-# Copyright (C) 20010 Bob Foerster <robert@erafx.com>
+# Copyright (C) 2010 Bob Foerster <robert@erafx.com>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
