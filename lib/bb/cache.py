@@ -197,59 +197,6 @@ class Cache(object):
                     break
                 self.depends_cache[key] = value
 
-    @staticmethod
-    def virtualfn2realfn(virtualfn):
-        """
-        Convert a virtual file name to a real one + the associated subclass keyword
-        """
-
-        fn = virtualfn
-        cls = ""
-        if virtualfn.startswith('virtual:'):
-            cls = virtualfn.split(':', 2)[1]
-            fn = virtualfn.replace('virtual:' + cls + ':', '')
-        return (fn, cls)
-
-    @staticmethod
-    def realfn2virtual(realfn, cls):
-        """
-        Convert a real filename + the associated subclass keyword to a virtual filename
-        """
-        if cls == "":
-            return realfn
-        return "virtual:" + cls + ":" + realfn
-
-    @classmethod
-    def loadDataFull(cls, virtualfn, appends, cfgData):
-        """
-        Return a complete set of data for fn.
-        To do this, we need to parse the file.
-        """
-
-        (fn, virtual) = cls.virtualfn2realfn(virtualfn)
-
-        logger.debug(1, "Parsing %s (full)", fn)
-
-        bb_data = cls.load_bbfile(fn, appends, cfgData)
-        return bb_data[virtual]
-
-    @classmethod
-    def parse(cls, filename, appends, configdata):
-        """Parse the specified filename, returning the recipe information"""
-        infos = []
-        datastores = cls.load_bbfile(filename, appends, configdata)
-        depends = set()
-        for variant, data in sorted(datastores.iteritems(),
-                                    key=lambda i: i[0],
-                                    reverse=True):
-            virtualfn = cls.realfn2virtual(filename, variant)
-            depends |= (data.getVar("__depends", False) or set())
-            if depends and not variant:
-                data.setVar("__depends", depends)
-            info = RecipeInfo.from_metadata(filename, data)
-            infos.append((virtualfn, info))
-        return infos
-
     def load(self, filename, appends, configdata):
         """Obtain the recipe information for the specified filename,
         using cached values if available, otherwise parsing.
@@ -263,11 +210,11 @@ class Cache(object):
             infos = []
             info = self.depends_cache[filename]
             for variant in info.variants:
-                virtualfn = self.realfn2virtual(filename, variant)
+                virtualfn = realfn2virtual(filename, variant)
                 infos.append((virtualfn, self.depends_cache[virtualfn]))
         else:
             logger.debug(1, "Parsing %s", filename)
-            return self.parse(filename, appends, configdata)
+            return parse(filename, appends, configdata)
 
         return cached, infos
 
@@ -358,7 +305,7 @@ class Cache(object):
 
         invalid = False
         for cls in info.variants:
-            virtualfn = self.realfn2virtual(fn, cls)
+            virtualfn = realfn2virtual(fn, cls)
             self.clean.add(virtualfn)
             if virtualfn not in self.depends_cache:
                 logger.debug(2, "Cache: %s is not cached", virtualfn)
@@ -367,7 +314,7 @@ class Cache(object):
         # If any one of the variants is not present, mark as invalid for all
         if invalid:
             for cls in info.variants:
-                virtualfn = self.realfn2virtual(fn, cls)
+                virtualfn = realfn2virtual(fn, cls)
                 if virtualfn in self.clean:
                     logger.debug(2, "Cache: Removing %s from cache", virtualfn)
                     self.clean.remove(virtualfn)
@@ -413,10 +360,6 @@ class Cache(object):
 
         del self.depends_cache
 
-    @staticmethod
-    def mtime(cachefile):
-        return bb.parse.cached_mtime_noerror(cachefile)
-
     def add_info(self, filename, info, cacheData, parsed=None):
         cacheData.add_from_recipeinfo(filename, info)
         if not self.has_cache:
@@ -432,46 +375,96 @@ class Cache(object):
         Save data we need into the cache
         """
 
-        realfn = self.virtualfn2realfn(file_name)[0]
+        realfn = virtualfn2realfn(file_name)[0]
         info = RecipeInfo.from_metadata(realfn, data)
         self.add_info(file_name, info, cacheData, parsed)
 
-    @staticmethod
-    def load_bbfile(bbfile, appends, config):
-        """
-        Load and parse one .bb build file
-        Return the data and whether parsing resulted in the file being skipped
-        """
-        chdir_back = False
+def mtime(cachefile):
+    return bb.parse.cached_mtime_noerror(cachefile)
 
-        from bb import data, parse
+def load_bbfile(bbfile, appends, config):
+    """
+    Load and parse one .bb build file
+    Return the data and whether parsing resulted in the file being skipped
+    """
+    chdir_back = False
 
-        # expand tmpdir to include this topdir
-        data.setVar('TMPDIR', data.getVar('TMPDIR', config, 1) or "", config)
-        bbfile_loc = os.path.abspath(os.path.dirname(bbfile))
-        oldpath = os.path.abspath(os.getcwd())
-        parse.cached_mtime_noerror(bbfile_loc)
-        bb_data = data.init_db(config)
-        # The ConfHandler first looks if there is a TOPDIR and if not
-        # then it would call getcwd().
-        # Previously, we chdir()ed to bbfile_loc, called the handler
-        # and finally chdir()ed back, a couple of thousand times. We now
-        # just fill in TOPDIR to point to bbfile_loc if there is no TOPDIR yet.
-        if not data.getVar('TOPDIR', bb_data):
-            chdir_back = True
-            data.setVar('TOPDIR', bbfile_loc, bb_data)
-        try:
-            if appends:
-                data.setVar('__BBAPPEND', " ".join(appends), bb_data)
-            bb_data = parse.handle(bbfile, bb_data)
-            if chdir_back:
-                os.chdir(oldpath)
-            return bb_data
-        except:
-            if chdir_back:
-                os.chdir(oldpath)
-            raise
+    from bb import data, parse
 
+    # expand tmpdir to include this topdir
+    data.setVar('TMPDIR', data.getVar('TMPDIR', config, 1) or "", config)
+    bbfile_loc = os.path.abspath(os.path.dirname(bbfile))
+    oldpath = os.path.abspath(os.getcwd())
+    parse.cached_mtime_noerror(bbfile_loc)
+    bb_data = data.init_db(config)
+    # The ConfHandler first looks if there is a TOPDIR and if not
+    # then it would call getcwd().
+    # Previously, we chdir()ed to bbfile_loc, called the handler
+    # and finally chdir()ed back, a couple of thousand times. We now
+    # just fill in TOPDIR to point to bbfile_loc if there is no TOPDIR yet.
+    if not data.getVar('TOPDIR', bb_data):
+        chdir_back = True
+        data.setVar('TOPDIR', bbfile_loc, bb_data)
+    try:
+        if appends:
+            data.setVar('__BBAPPEND', " ".join(appends), bb_data)
+        bb_data = parse.handle(bbfile, bb_data)
+        if chdir_back:
+            os.chdir(oldpath)
+        return bb_data
+    except:
+        if chdir_back:
+            os.chdir(oldpath)
+        raise
+
+def virtualfn2realfn(virtualfn):
+    """
+    Convert a virtual file name to a real one + the associated subclass keyword
+    """
+
+    fn = virtualfn
+    cls = ""
+    if virtualfn.startswith('virtual:'):
+        cls = virtualfn.split(':', 2)[1]
+        fn = virtualfn.replace('virtual:' + cls + ':', '')
+    return (fn, cls)
+
+def realfn2virtual(realfn, cls):
+    """
+    Convert a real filename + the associated subclass keyword to a virtual filename
+    """
+    if cls == "":
+        return realfn
+    return "virtual:" + cls + ":" + realfn
+
+def loadDataFull(virtualfn, appends, cfgData):
+    """
+    Return a complete set of data for fn.
+    To do this, we need to parse the file.
+    """
+
+    (fn, virtual) = virtualfn2realfn(virtualfn)
+
+    logger.debug(1, "Parsing %s (full)", fn)
+
+    bb_data = load_bbfile(fn, appends, cfgData)
+    return bb_data[virtual]
+
+def parse(filename, appends, configdata):
+    """Parse the specified filename, returning the recipe information"""
+    infos = []
+    datastores = load_bbfile(filename, appends, configdata)
+    depends = set()
+    for variant, data in sorted(datastores.iteritems(),
+                                key=lambda i: i[0],
+                                reverse=True):
+        virtualfn = realfn2virtual(filename, variant)
+        depends |= (data.getVar("__depends", False) or set())
+        if depends and not variant:
+            data.setVar("__depends", depends)
+        info = RecipeInfo.from_metadata(filename, data)
+        infos.append((virtualfn, info))
+    return infos
 
 def init(cooker):
     """

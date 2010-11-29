@@ -233,7 +233,7 @@ class BBCooker:
 
         if fn:
             try:
-                envdata = bb.cache.Cache.loadDataFull(fn, self.get_file_appends(fn), self.configuration.data)
+                envdata = bb.cache.loadDataFull(fn, self.get_file_appends(fn), self.configuration.data)
             except Exception, e:
                 parselog.exception("Unable to read %s", fn)
                 raise
@@ -627,15 +627,15 @@ class BBCooker:
         if (task == None):
             task = self.configuration.cmd
 
-        (fn, cls) = bb.cache.Cache.virtualfn2realfn(buildfile)
+        (fn, cls) = bb.cache.virtualfn2realfn(buildfile)
         buildfile = self.matchFile(fn)
-        fn = bb.cache.Cache.realfn2virtual(buildfile, cls)
+        fn = bb.cache.realfn2virtual(buildfile, cls)
 
         self.buildSetVars()
 
         self.status = bb.cache.CacheData()
-        infos = bb.cache.Cache.parse(fn, self.get_file_appends(fn), \
-                                     self.configuration.data)
+        infos = bb.cache.parse(fn, self.get_file_appends(fn), \
+                               self.configuration.data)
         maininfo = None
         for vfn, info in infos:
             self.status.add_from_recipeinfo(vfn, info)
@@ -983,7 +983,7 @@ class CookerParser(object):
             signal.signal(signal.SIGINT, signal.SIG_IGN)
             for filename, appends in iter(input.get, 'STOP'):
                 try:
-                    infos = bb.cache.Cache.parse(filename, appends, cfgdata)
+                    infos = bb.cache.parse(filename, appends, cfgdata)
                 except bb.parse.ParseError as exc:
                     output.put(exc)
                 else:
@@ -1071,8 +1071,8 @@ class CookerParser(object):
         return True
 
     def reparse(self, filename):
-        infos = self.bb_cache.parse(filename,
-                                    self.cooker.get_file_appends(filename),
-                                    self.cfgdata)
+        infos = bb.cache.parse(filename,
+                               self.cooker.get_file_appends(filename),
+                               self.cfgdata)
         for vfn, info in infos:
             self.cooker.status.add_from_recipeinfo(vfn, info)
