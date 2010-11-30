@@ -948,12 +948,10 @@ class CookerParser(object):
         self.total = len(filelist)
 
         self.current = 0
-        self.started = False
         self.bb_cache = None
         self.task_queue = None
         self.result_queue = None
         self.fromcache = None
-        self.progress_chunk = self.total / 100
         self.num_processes = int(self.cfgdata.getVar("BB_NUMBER_PARSE_THREADS", True) or
                                  multiprocessing.cpu_count())
         self.sync_thread = None
@@ -969,6 +967,8 @@ class CookerParser(object):
                 self.task_queue.put((filename, appends))
             else:
                 self.fromcache.append((filename, appends))
+        self.toparse = self.total - len(self.fromcache)
+        self.progress_chunk = self.toparse / 100
 
         def worker(input, output, cfgdata):
             for filename, appends in iter(input.get, 'STOP'):
@@ -1018,15 +1018,10 @@ class CookerParser(object):
             bb.event.fire(event, self.cfgdata)
             self.shutdown()
             return False
-        elif not self.started:
-            self.started = True
-            
-            return True
         elif not self.bb_cache:
             self.bb_cache = bb.cache.Cache(self.cfgdata)
-            bb.event.fire(bb.event.ParseStarted(self.total, self.skipped, self.masked),
-                          self.cfgdata)
             self.launch_processes()
+            bb.event.fire(bb.event.ParseStarted(self.toparse), self.cfgdata)
             return True
 
         try:
@@ -1034,19 +1029,21 @@ class CookerParser(object):
                 filename, appends = self.fromcache.pop()
                 _, result = self.bb_cache.load(filename, appends, self.cfgdata)
                 parsed = False
+                self.cached += 1
             else:
                 result = self.result_queue.get()
                 if isinstance(result, Exception):
                     raise result
+
                 parsed = True
+                self.parsed += 1
+                if self.parsed % self.progress_chunk == 0:
+                    bb.event.fire(bb.event.ParseProgress(self.parsed),
+                                  self.cfgdata)
         except Exception as e:
             self.error += 1
             parselog.critical(str(e))
         else:
-            if parsed:
-                self.parsed += 1
-            else:
-                self.cached += 1
             self.virtuals += len(result)
 
             for virtualfn, info in result:
@@ -1055,10 +1052,6 @@ class CookerParser(object):
                 else:
                     self.bb_cache.add_info(virtualfn, info, self.cooker.status,
                                            parsed=parsed)
-        finally:
-            # only fire events on percentage boundaries
-            if self.current % self.progress_chunk == 0:
-                bb.event.fire(bb.event.ParseProgress(self.current), self.cfgdata)
 
         self.current += 1
         return True

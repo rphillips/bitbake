@@ -142,8 +142,7 @@ class Cache(object):
         self.clean = set()
         self.checked = set()
         self.depends_cache = {}
-        self.data = None
-        self.data_fn = None
+        self.cfgdata = data
         self.cacheclean = True
 
         if self.cachedir in [None, '']:
@@ -167,42 +166,40 @@ class Cache(object):
         old_mtimes.append(newest_mtime)
         newest_mtime = max(old_mtimes)
 
-        num_cached = 0
         if bb.parse.cached_mtime_noerror(self.cachefile) >= newest_mtime:
+            self.load_cachefile()
+        elif os.path.isfile(self.cachefile):
+            logger.info("Out of date cache found, rebuilding...")
+
+    def load_cachefile(self):
+        with open(self.cachefile, "rb") as cachefile:
+            pickled = pickle.Unpickler(cachefile)
             try:
-                f = file(self.cachefile, "rb")
-                num_cached = pickle.load(f)
+                cache_ver = pickled.load()
+                bitbake_ver = pickled.load()
+            except Exception:
+                logger.info('Invalid cache, rebuilding...')
+                return
 
-                version_data = pickle.load(f)
-                if version_data['CACHE_VER'] != __cache_version__:
-                    raise ValueError('Cache Version Mismatch')
-                if version_data['BITBAKE_VER'] != bb.__version__:
-                    raise ValueError('Bitbake Version Mismatch')
+            if cache_ver != __cache_version__:
+                logger.info('Cache version mismatch, rebuilding...')
+                return
+            elif bitbake_ver != bb.__version__:
+                logger.info('Bitbake version mismatch, rebuilding...')
+                return
 
-                current_item = 0
-                bb.event.fire(bb.event.CacheLoadStarted(num_cached), current_item)
-                
-                while 1:
-                    k = pickle.load(f)
-                    v = pickle.load(f)
-                    self.depends_cache[k] = v
-                    current_item += 1
-                    if current_item % 100 == 0:
-                        bb.event.fire(bb.event.CacheLoadProgress(current_item), current_item)
-
-            except EOFError:
-                # Not all EOFErrors mean the cache is truncated
-                if num_cached != len(self.depends_cache):
-                    logger.info("Truncated cache found, rebuilding...")
-                    self.depends_cache = {}
-                else:
-                    bb.event.fire(bb.event.CacheLoadCompleted(num_cached), current_item)
-            except:
-                logger.info("Invalid cache found, rebuilding...")
-                self.depends_cache = {}
-        else:
-            if os.path.isfile(self.cachefile):
-                logger.info("Out of date cache found, rebuilding...")
+            cachesize = os.fstat(cachefile.fileno()).st_size
+            bb.event.fire(bb.event.CacheLoadStarted(cachesize), self.cfgdata)
+            while cachefile:
+                try:
+                    key = pickled.load()
+                    value = pickled.load()
+                except Exception:
+                    break
+                self.depends_cache[key] = value
+                bb.event.fire(bb.event.CacheLoadProgress(cachefile.tell()),
+                              self.cfgdata)
+            bb.event.fire(bb.event.CacheLoadCompleted(cachesize), self.cfgdata)
 
     @staticmethod
     def virtualfn2realfn(virtualfn):
@@ -410,18 +407,13 @@ class Cache(object):
             logger.debug(2, "Cache is clean, not saving.")
             return
 
-        version_data = {
-            'CACHE_VER': __cache_version__,
-            'BITBAKE_VER': bb.__version__,
-        }
-
-        # save the cache in pieces to allow showing progress info while loading
         with open(self.cachefile, "wb") as cachefile:
-            pickle.dump(len(self.depends_cache), cachefile, pickle.HIGHEST_PROTOCOL)
-            pickle.dump(version_data, cachefile, pickle.HIGHEST_PROTOCOL)
-            for k, v in self.depends_cache.iteritems():
-                pickle.dump(k, cachefile, pickle.HIGHEST_PROTOCOL)
-                pickle.dump(v, cachefile, pickle.HIGHEST_PROTOCOL)
+            pickler = pickle.Pickler(cachefile, pickle.HIGHEST_PROTOCOL)
+            pickler.dump(__cache_version__)
+            pickler.dump(bb.__version__)
+            for key, value in self.depends_cache.iteritems():
+                pickler.dump(key)
+                pickler.dump(value)
 
         del self.depends_cache
 
