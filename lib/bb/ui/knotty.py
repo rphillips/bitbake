@@ -151,10 +151,11 @@ def init(server, eventHandler):
             if isinstance(event, bb.event.ParseCompleted):
                 if interactive:
                     pbar.update(pbar.maxval)
+                    sys.stdout.write('\n')
                 else:
                     sys.stdout.write("done.\n")
                     sys.stdout.flush()
-                print(("\nParsing of %d .bb files complete (%d cached, %d parsed). %d targets, %d skipped, %d masked, %d errors."
+                print(("Parsing of %d .bb files complete (%d cached, %d parsed). %d targets, %d skipped, %d masked, %d errors."
                     % ( event.total, event.cached, event.parsed, event.virtuals, event.skipped, event.masked, event.errors)))
                 continue
 
@@ -174,6 +175,7 @@ def init(server, eventHandler):
             if isinstance(event, bb.event.CacheLoadCompleted):
                 if interactive:
                     cache_bar.update(cache_bar.maxval)
+                    sys.stdout.write('\n')
                 else:
                     sys.stdout.write("done.\n")
                     sys.stdout.flush()
