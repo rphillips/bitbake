@@ -48,7 +48,7 @@ class RunningBuild (gobject.GObject):
         gobject.GObject.__init__ (self)
         self.model = RunningBuildModel()
 
-    def handle_event (self, event):
+    def handle_event (self, event, pbar=None):
         # Handle an event from the event queue, this may result in updating
         # the model and thus the UI. Or it may be to tell us that the build
         # has finished successfully (or not, as the case may be.)
@@ -67,23 +67,23 @@ class RunningBuild (gobject.GObject):
                 (package, task) = self.pids_to_task[pid]
                 parent = self.tasks_to_iter[(package, task)]
 
-        if isinstance(event, bb.msg.Msg):
+        if isinstance(event, bb.msg.MsgBase):
+            # Ignore the "Running task i of n .."
+            if (event._message.startswith ("Running task")):
+                return # don't add these to the list
+
             # Set a pretty icon for the message based on it's type.
             if isinstance(event, bb.msg.MsgWarn):
                 icon = "dialog-warning"
-            elif isinstance(event, bb.msg.MsgErr):
+            elif isinstance(event, bb.msg.MsgError):
                 icon = "dialog-error"
             else:
                 icon = None
 
-            # Ignore the "Running task i of n .." messages
-            if (event._message.startswith ("Running task")):
-                return
-
             # Add the message to the tree either at the top level if parent is
             # None otherwise as a descendent of a task.
             self.model.append (parent,
-                               (event.__name__.split()[-1], # e.g. MsgWarn, MsgError
+                               (event.__class__.__name__.split()[-1], # e.g. MsgWarn, MsgError
                                 package,
                                 task,
                                 event._message,
@@ -128,7 +128,7 @@ class RunningBuild (gobject.GObject):
             # Mark this task as active.
             self.model.set(i, self.model.COL_ICON, "gtk-execute")
 
-        elif isinstance(event, bb.build.Task):
+        elif isinstance(event, bb.build.TaskBase):
 
             if isinstance(event, bb.build.TaskFailed):
                 # Mark the task as failed
@@ -161,6 +161,14 @@ class RunningBuild (gobject.GObject):
                 self.emit ("build-failed")
             else:
                 self.emit ("build-succeeded")
+
+        elif isinstance(event, bb.event.ParseProgress) and pbar:
+            x = event.sofar
+            y = event.total
+            if x == y:
+                pbar.hide()
+                return
+            pbar.update(x, y)
 
 class RunningBuildTreeView (gtk.TreeView):
     def __init__ (self):

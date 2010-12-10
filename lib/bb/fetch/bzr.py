@@ -37,10 +37,7 @@ class Bzr(Fetch):
     def localpath (self, url, ud, d):
 
         # Create paths to bzr checkouts
-        relpath = ud.path
-        if relpath.startswith('/'):
-            # Remove leading slash as os.path.join can't cope
-            relpath = relpath[1:]
+        relpath = self._strip_leading_slashes(ud.path)
         ud.pkgdir = os.path.join(data.expand('${BZRDIR}', d), ud.host, relpath)
 
         revision = Fetch.srcrev_internal_helper(ud, d)
@@ -64,9 +61,7 @@ class Bzr(Fetch):
 
         basecmd = data.expand('${FETCHCMD_bzr}', d)
 
-        proto = "http"
-        if "proto" in ud.parm:
-            proto = ud.parm["proto"]
+        proto =  ud.parm.get('proto', 'http')
 
         bzrroot = ud.host + ud.path
 
@@ -116,7 +111,7 @@ class Bzr(Fetch):
                 pass
             raise t, v, tb
 
-    def suppports_srcrev(self):
+    def supports_srcrev(self):
         return True
 
     def _revision_key(self, url, ud, d):

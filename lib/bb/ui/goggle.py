@@ -22,16 +22,20 @@ import gobject
 import gtk
 import xmlrpclib
 from bb.ui.crumbs.runningbuild import RunningBuildTreeView, RunningBuild
+from bb.ui.crumbs.progress import ProgressBar
 
-def event_handle_idle_func (eventHandler, build):
+def event_handle_idle_func (eventHandler, build, pbar):
 
     # Consume as many messages as we can in the time available to us
     event = eventHandler.getEvent()
     while event:
-        build.handle_event (event)
+        build.handle_event (event, pbar)
         event = eventHandler.getEvent()
 
     return True
+
+def scroll_tv_cb (model, path, iter, view):
+    view.scroll_to_cell (path)
 
 class MainWindow (gtk.Window):
     def __init__ (self):
@@ -41,18 +45,22 @@ class MainWindow (gtk.Window):
         scrolled_window = gtk.ScrolledWindow ()
         self.add (scrolled_window)
         self.cur_build_tv = RunningBuildTreeView()
+        self.connect("delete-event", gtk.main_quit)
+        self.set_default_size(640, 480)
         scrolled_window.add (self.cur_build_tv)
 
-def init (server, eventHandler):
+def main (server, eventHandler):
     gobject.threads_init()
     gtk.gdk.threads_init()
 
     window = MainWindow ()
     window.show_all ()
+    pbar = ProgressBar(window)
 
     # Create the object for the current build
     running_build = RunningBuild ()
     window.cur_build_tv.set_model (running_build.model)
+    running_build.model.connect("row-inserted", scroll_tv_cb, window.cur_build_tv)
     try:
         cmdline = server.runCommand(["getCmdLineAction"])
         print(cmdline)
@@ -71,6 +79,7 @@ def init (server, eventHandler):
     gobject.timeout_add (200,
                          event_handle_idle_func,
                          eventHandler,
-                         running_build)
+                         running_build,
+                         pbar)
 
     gtk.main()

@@ -24,7 +24,10 @@ BitBake build tools.
 
 import os, sys
 import warnings
-import pickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 import logging
 import atexit
 import bb.utils
@@ -56,8 +59,7 @@ bb.utils._context["NotHandled"] = NotHandled
 bb.utils._context["Handled"] = Handled
 
 def fire_class_handlers(event, d):
-    import bb.msg
-    if isinstance(event, MsgBase):
+    if isinstance(event, logging.LogRecord):
         return
 
     for handler in _handlers:
@@ -296,10 +298,14 @@ class MultipleProviders(Event):
         """
         return self._candidates
 
-class ParseProgress(Event):
-    """
-    Parsing Progress Event
-    """
+class ParseStarted(Event):
+    """Recipe parsing for the runqueue has begun"""
+    def __init__(self, total):
+        Event.__init__(self)
+        self.total = total
+
+class ParseCompleted(Event):
+    """Recipe parsing for the runqueue has completed"""
 
     def __init__(self, cached, parsed, skipped, masked, virtuals, errors, total):
         Event.__init__(self)
@@ -311,6 +317,12 @@ class ParseProgress(Event):
         self.errors = errors
         self.sofar = cached + parsed
         self.total = total
+
+class ParseProgress(Event):
+    """Recipe parsing progress"""
+
+    def __init__(self, current):
+        self.current = current
 
 class DepTreeGenerated(Event):
     """

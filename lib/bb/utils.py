@@ -26,6 +26,7 @@ import logging
 import bb
 import bb.msg
 from commands import getstatusoutput
+from contextlib import contextmanager
 
 logger = logging.getLogger("BitBake.Util")
 
@@ -93,7 +94,7 @@ def vercmp(ta, tb):
     (ea, va, ra) = ta
     (eb, vb, rb) = tb
 
-    r = int(ea)-int(eb)
+    r = int(ea or 0) - int(eb or 0)
     if (r == 0):
         r = vercmp_part(va, vb)
     if (r == 0):
@@ -256,7 +257,7 @@ def explode_dep_versions(s):
     and return a dictionary of dependencies and versions.
     """
     r = {}
-    l = s.split()
+    l = s.replace(",", "").split()
     lastdep = None
     lastver = ""
     inversion = False
@@ -295,7 +296,6 @@ def _print_trace(body, line):
     Print the Environment of a Text Body
     """
     # print the environment of the method
-    logger.error("Printing the environment of the function")
     min_line = max(1, line-4)
     max_line = min(line + 4, len(body)-1)
     for i in xrange(min_line, max_line + 1):
@@ -313,13 +313,17 @@ def better_compile(text, file, realfile, mode = "exec"):
         # split the text into lines again
         body = text.split('\n')
         logger.error("Error in compiling python function in %s", realfile)
-        logger.error("The lines leading to this error were:")
-        logger.error("\t%d:%s:'%s'", e.lineno, e.__class__.__name__, body[e.lineno-1])
+        logger.error(str(e))
+        if e.lineno:
+            logger.error("The lines leading to this error were:")
+            logger.error("\t%d:%s:'%s'", e.lineno, e.__class__.__name__, body[e.lineno-1])
+            _print_trace(body, e.lineno)
+        else:
+            logger.error("The function causing this error was:")
+            for line in body:
+                logger.error(line)
 
-        _print_trace(body, e.lineno)
-
-        # exit now
-        sys.exit(1)
+        raise
 
 def better_exec(code, context, text, realfile = "<code>"):
     """
@@ -340,13 +344,18 @@ def better_exec(code, context, text, realfile = "<code>"):
 
         logger.exception("Error executing python function in '%s'", code.co_filename)
 
-        # let us find the line number now
-        while tb.tb_next:
-            tb = tb.tb_next
+        # Strip 'us' from the stack (better_exec call)
+        tb = tb.tb_next
 
         import traceback
-        line = traceback.tb_lineno(tb)
+        tbextract = traceback.extract_tb(tb)
+        tbextract = "\n".join(traceback.format_list(tbextract))
+        bb.msg.error(bb.msg.domain.Util, "Traceback:")
+        for line in tbextract.split('\n'):
+            bb.msg.error(bb.msg.domain.Util, line)
 
+        line = traceback.tb_lineno(tb)
+        bb.msg.error(bb.msg.domain.Util, "The lines leading to this error were:")
         _print_trace( text.split('\n'), line )
         raise
 
@@ -356,6 +365,19 @@ def simple_exec(code, context):
 def better_eval(source, locals):
     return eval(source, _context, locals)
 
+@contextmanager
+def fileslocked(files):
+    """Context manager for locking and unlocking file locks."""
+    locks = []
+    if files:
+        for lockfile in files:
+            locks.append(bb.utils.lockfile(lockfile))
+
+    yield
+
+    for lock in locks:
+        bb.utils.unlockfile(lock)
+
 def lockfile(name):
     """
     Use the file fn as a lock file, return when the lock has been acquired.
@@ -363,7 +385,7 @@ def lockfile(name):
     """
     path = os.path.dirname(name)
     if not os.path.isdir(path):
-        logger.error("Lockfile path '%s' does not exist", path)
+        logger.error("Lockfile destination directory '%s' does not exist", path)
         sys.exit(1)
 
     while True:
@@ -378,16 +400,16 @@ def lockfile(name):
         # lock is the most likely to win it.
 
         try:
-            lf = open(name, "a + ")
-            fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
-            statinfo = os.fstat(lf.fileno())
+            lf = open(name, 'a+')
+            fileno = lf.fileno()
+            fcntl.flock(fileno, fcntl.LOCK_EX)
+            statinfo = os.fstat(fileno)
             if os.path.exists(lf.name):
                 statinfo2 = os.stat(lf.name)
                 if statinfo.st_ino == statinfo2.st_ino:
                     return lf
-            # File no longer exists or changed, retry
-            lf.close
-        except Exception as e:
+            lf.close()
+        except Exception:
             continue
 
 def unlockfile(lf):
@@ -396,7 +418,7 @@ def unlockfile(lf):
     """
     os.unlink(lf.name)
     fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
-    lf.close
+    lf.close()
 
 def md5_file(filename):
     """
@@ -513,6 +535,17 @@ def build_environment(d):
         export = bb.data.getVarFlag(var, "export", d)
         if export:
             os.environ[var] = bb.data.getVar(var, d, True) or ""
+
+def remove(path, recurse=False):
+    """Equivalent to rm -f or rm -rf"""
+    import os, errno, shutil
+    try:
+        os.unlink(path)
+    except OSError, exc:
+        if recurse and exc.errno == errno.EISDIR:
+            shutil.rmtree(path)
+        elif exc.errno != errno.ENOENT:
+            raise
 
 def prunedir(topdir):
     # Delete everything reachable from the directory named in 'topdir'.
@@ -687,6 +720,10 @@ def copyfile(src, dest, newmtime = None, sstat = None):
         except Exception as e:
             print('copyfile: copy', src, '->', dest, 'failed.', e)
             return False
+        finally:
+            os.chmod(src, sstat[stat.ST_MODE])
+            os.utime(src, (sstat[stat.ST_ATIME], sstat[stat.ST_MTIME]))
+
     else:
         #we don't yet handle special, so we need to fall back to /bin/mv
         a = getstatusoutput("/bin/cp -f " + "'" + src + "' '" + dest + "'")

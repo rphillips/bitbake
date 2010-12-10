@@ -24,8 +24,13 @@
 
 from __future__ import print_function
 import sys, os, glob, os.path, re, time
+import atexit
+import itertools
 import logging
+import multiprocessing
+import signal
 import sre_constants
+import threading
 from cStringIO import StringIO
 from contextlib import closing
 import bb
@@ -42,26 +47,13 @@ class MultipleMatches(Exception):
     Exception raised when multiple file matches are found
     """
 
-class ParsingErrorsFound(Exception):
-    """
-    Exception raised when parsing errors are found
-    """
-
 class NothingToBuild(Exception):
     """
     Exception raised when there is nothing to build
     """
 
-
-# Different states cooker can be in
-cookerClean = 1
-cookerParsing = 2
-cookerParsed = 3
-
-# Different action states the cooker can be in
-cookerRun = 1           # Cooker is running normally
-cookerShutdown = 2      # Active tasks should be brought to a controlled stop
-cookerStop = 3          # Stop, now!
+class state:
+    initial, parsing, running, shutdown, stop = range(5)
 
 #============================================================================#
 # BBCooker
@@ -73,9 +65,7 @@ class BBCooker:
 
     def __init__(self, configuration, server):
         self.status = None
-
-        self.cache = None
-        self.bb_cache = None
+        self.appendlist = {}
 
         self.server = server.BitBakeServer(self)
 
@@ -111,8 +101,7 @@ class BBCooker:
                 termios.tcsetattr(fd, termios.TCSANOW, tcattr)
 
         self.command = bb.command.Command(self)
-        self.cookerState = cookerClean
-        self.cookerAction = cookerRun
+        self.state = state.initial
 
     def parseConfiguration(self):
 
@@ -211,8 +200,6 @@ class BBCooker:
         envdata = None
 
         if buildfile:
-            self.cb = None
-            self.bb_cache = bb.cache.init(self)
             fn = self.matchFile(buildfile)
         elif len(pkgs_to_build) == 1:
             self.updateCache()
@@ -233,7 +220,7 @@ class BBCooker:
 
         if fn:
             try:
-                envdata = self.bb_cache.loadDataFull(fn, self.get_file_appends(fn), self.configuration.data)
+                envdata = bb.cache.Cache.loadDataFull(fn, self.get_file_appends(fn), self.configuration.data)
             except Exception, e:
                 parselog.exception("Unable to read %s", fn)
                 raise
@@ -588,7 +575,7 @@ class BBCooker:
         """
 
         bf = os.path.abspath(buildfile)
-        (filelist, masked) = self.collect_bbfiles()
+        filelist, masked = self.collect_bbfiles()
         try:
             os.stat(bf)
             return [bf]
@@ -627,22 +614,23 @@ class BBCooker:
         if (task == None):
             task = self.configuration.cmd
 
-        self.bb_cache = bb.cache.init(self)
-        self.status = bb.cache.CacheData()
-
-        (fn, cls) = self.bb_cache.virtualfn2realfn(buildfile)
+        (fn, cls) = bb.cache.Cache.virtualfn2realfn(buildfile)
         buildfile = self.matchFile(fn)
-        fn = self.bb_cache.realfn2virtual(buildfile, cls)
+        fn = bb.cache.Cache.realfn2virtual(buildfile, cls)
 
         self.buildSetVars()
 
-        # Load data into the cache for fn and parse the loaded cache data
-        the_data = self.bb_cache.loadDataFull(fn, self.get_file_appends(fn), self.configuration.data)
-        self.bb_cache.setData(fn, buildfile, the_data)
-        self.bb_cache.handle_data(fn, self.status)
+        self.status = bb.cache.CacheData()
+        infos = bb.cache.Cache.parse(fn, self.get_file_appends(fn), \
+                                     self.configuration.data)
+        maininfo = None
+        for vfn, info in infos:
+            self.status.add_from_recipeinfo(vfn, info)
+            if vfn == fn:
+                maininfo = info
 
         # Tweak some variables
-        item = self.bb_cache.getVar('PN', fn, True)
+        item = maininfo.pn
         self.status.ignored_dependencies = set()
         self.status.bbfile_priority[fn] = 1
 
@@ -671,9 +659,9 @@ class BBCooker:
 
         def buildFileIdle(server, rq, abort):
 
-            if abort or self.cookerAction == cookerStop:
+            if abort or self.state == state.stop:
                 rq.finish_runqueue(True)
-            elif self.cookerAction == cookerShutdown:
+            elif self.state == state.shutdown:
                 rq.finish_runqueue(False)
             failures = 0
             try:
@@ -687,6 +675,8 @@ class BBCooker:
                 bb.event.fire(bb.event.BuildCompleted(buildname, item, failures), self.configuration.event_data)
                 self.command.finishAsyncCommand()
                 return False
+            if retval is True:
+                return True
             return 0.5
 
         self.server.register_idle_function(buildFileIdle, rq)
@@ -706,10 +696,9 @@ class BBCooker:
         targets = self.checkPackages(targets)
 
         def buildTargetsIdle(server, rq, abort):
-
-            if abort or self.cookerAction == cookerStop:
+            if abort or self.state == state.stop:
                 rq.finish_runqueue(True)
-            elif self.cookerAction == cookerShutdown:
+            elif self.state == state.shutdown:
                 rq.finish_runqueue(False)
             failures = 0
             try:
@@ -722,7 +711,9 @@ class BBCooker:
             if not retval:
                 bb.event.fire(bb.event.BuildCompleted(buildname, targets, failures), self.configuration.event_data)
                 self.command.finishAsyncCommand()
-                return None
+                return False
+            if retval is True:
+                return True
             return 0.5
 
         self.buildSetVars()
@@ -747,12 +738,10 @@ class BBCooker:
         self.server.register_idle_function(buildTargetsIdle, rq)
 
     def updateCache(self):
-
-        if self.cookerState == cookerParsed:
+        if self.state == state.running:
             return
 
-        if self.cookerState != cookerParsing:
-
+        if self.state != state.parsing:
             self.parseConfiguration ()
 
             # Import Psyco if available and not disabled
@@ -782,12 +771,12 @@ class BBCooker:
             bb.data.renameVar("__depends", "__base_depends", self.configuration.data)
 
             self.parser = CookerParser(self, filelist, masked)
-            self.cookerState = cookerParsing
+            self.state = state.parsing
 
         if not self.parser.parse_next():
             collectlog.debug(1, "parsing complete")
             self.buildDepgraph()
-            self.cookerState = cookerParsed
+            self.state = state.running
             return None
 
         return True
@@ -831,7 +820,6 @@ class BBCooker:
     def collect_bbfiles( self ):
         """Collect all available .bb build files"""
         parsed, cached, skipped, masked = 0, 0, 0, 0
-        self.bb_cache = bb.cache.init(self)
 
         collectlog.debug(1, "collecting .bb files")
 
@@ -880,7 +868,6 @@ class BBCooker:
                 collectlog.debug(1, "skipping %s: unknown file extension", f)
 
         # Build a list of .bbappend files for each .bb file
-        self.appendlist = {}
         for f in bbappend:
             base = os.path.basename(f).replace('.bbappend', '.bb')
             if not base in self.appendlist:
@@ -892,7 +879,7 @@ class BBCooker:
     def get_file_appends(self, fn):
         """
         Returns a list of .bbappend files to apply to fn
-        NB: collect_files() must have been called prior to this
+        NB: collect_bbfiles() must have been called prior to this
         """
         f = os.path.basename(fn)
         if f in self.appendlist:
@@ -934,6 +921,12 @@ class BBCooker:
 
         bb.event.fire(CookerExit(), self.configuration.event_data)
 
+    def shutdown(self):
+        self.state = state.shutdown
+
+    def stop(self):
+        self.state = state.stop
+
 class CookerExit(bb.event.Event):
     """
     Notify clients of the Cooker shutdown
@@ -942,59 +935,111 @@ class CookerExit(bb.event.Event):
     def __init__(self):
         bb.event.Event.__init__(self)
 
-class CookerParser:
+def parse_file(task):
+    filename, appends = task
+    return True, bb.cache.Cache.parse(filename, appends, parse_file.cfg)
+
+class CookerParser(object):
     def __init__(self, cooker, filelist, masked):
-        # Internal data
         self.filelist = filelist
         self.cooker = cooker
+        self.cfgdata = cooker.configuration.data
 
         # Accounting statistics
         self.parsed = 0
         self.cached = 0
         self.error = 0
         self.masked = masked
-        self.total = len(filelist)
 
         self.skipped = 0
         self.virtuals = 0
+        self.total = len(filelist)
 
-        # Pointer to the next file to parse
-        self.pointer = 0
+        self.current = 0
+        self.num_processes = int(self.cfgdata.getVar("BB_NUMBER_PARSE_THREADS", True) or
+                                 multiprocessing.cpu_count())
+
+        self.bb_cache = bb.cache.Cache(self.cfgdata)
+        self.fromcache = []
+        self.willparse = []
+        for filename in self.filelist:
+            appends = self.cooker.get_file_appends(filename)
+            if not self.bb_cache.cacheValid(filename):
+                self.willparse.append((filename, appends))
+            else:
+                self.fromcache.append((filename, appends))
+        self.toparse = self.total - len(self.fromcache)
+        self.progress_chunk = max(self.toparse / 100, 1)
+
+        self.start()
+
+    def start(self):
+        def init(cfg):
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            parse_file.cfg = cfg
+
+        bb.event.fire(bb.event.ParseStarted(self.toparse), self.cfgdata)
+
+        self.pool = multiprocessing.Pool(self.num_processes, init, [self.cfgdata])
+        parsed = self.pool.imap(parse_file, self.willparse)
+        self.pool.close()
+
+        self.results = itertools.chain(self.load_cached(), parsed)
+
+    def shutdown(self, clean=True):
+        if clean:
+            event = bb.event.ParseCompleted(self.cached, self.parsed,
+                                            self.skipped, self.masked,
+                                            self.virtuals, self.error,
+                                            self.total)
+            bb.event.fire(event, self.cfgdata)
+        else:
+            self.pool.terminate()
+        self.pool.join()
+
+        sync = threading.Thread(target=self.bb_cache.sync)
+        sync.start()
+        atexit.register(lambda: sync.join())
+
+    def load_cached(self):
+        for filename, appends in self.fromcache:
+            cached, infos = self.bb_cache.load(filename, appends, self.cfgdata)
+            yield not cached, infos
 
     def parse_next(self):
-        cooker = self.cooker
-        if self.pointer < len(self.filelist):
-            f = self.filelist[self.pointer]
-
-            try:
-                fromCache, skipped, virtuals = cooker.bb_cache.loadData(f, cooker.get_file_appends(f), cooker.configuration.data, cooker.status)
-                if fromCache:
-                    self.cached += 1
-                else:
-                    self.parsed += 1
-
-                self.skipped += skipped
-                self.virtuals += virtuals
-
-            except KeyboardInterrupt:
-                cooker.bb_cache.remove(f)
-                cooker.bb_cache.sync()
-                raise
-            except Exception as e:
-                self.error += 1
-                cooker.bb_cache.remove(f)
-                parselog.exception("Unable to open %s", f)
-            except:
-                cooker.bb_cache.remove(f)
-                raise
-            finally:
-                bb.event.fire(bb.event.ParseProgress(self.cached, self.parsed, self.skipped, self.masked, self.virtuals, self.error, self.total), cooker.configuration.event_data)
-
-            self.pointer += 1
-
-        if self.pointer >= self.total:
-            cooker.bb_cache.sync()
-            if self.error > 0:
-                raise ParsingErrorsFound
+        try:
+            parsed, result = self.results.next()
+        except StopIteration:
+            self.shutdown()
             return False
+        except KeyboardInterrupt:
+            self.shutdown(clean=False)
+            raise
+        except Exception as exc:
+            self.shutdown(clean=False)
+            sys.exit(1)
+
+        self.current += 1
+        self.virtuals += len(result)
+        if parsed:
+            self.parsed += 1
+            if self.parsed % self.progress_chunk == 0:
+                bb.event.fire(bb.event.ParseProgress(self.parsed),
+                              self.cfgdata)
+        else:
+            self.cached += 1
+
+        for virtualfn, info in result:
+            if info.skipped:
+                self.skipped += 1
+            else:
+                self.bb_cache.add_info(virtualfn, info, self.cooker.status,
+                                        parsed=parsed)
         return True
+
+    def reparse(self, filename):
+        infos = self.bb_cache.parse(filename,
+                                    self.cooker.get_file_appends(filename),
+                                    self.cfgdata)
+        for vfn, info in infos:
+            self.cooker.status.add_from_recipeinfo(vfn, info)

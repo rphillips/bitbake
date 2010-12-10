@@ -49,10 +49,7 @@ class Svn(Fetch):
         ud.module = ud.parm["module"]
 
         # Create paths to svn checkouts
-        relpath = ud.path
-        if relpath.startswith('/'):
-            # Remove leading slash as os.path.join can't cope
-            relpath = relpath[1:]
+        relpath = self._strip_leading_slashes(ud.path)
         ud.pkgdir = os.path.join(data.expand('${SVNDIR}', d), ud.host, relpath)
         ud.moddir = os.path.join(ud.pkgdir, ud.module)
 
@@ -94,9 +91,7 @@ class Svn(Fetch):
 
         basecmd = data.expand('${FETCHCMD_svn}', d)
 
-        proto = "svn"
-        if "proto" in ud.parm:
-            proto = ud.parm["proto"]
+        proto = ud.parm.get('proto', 'svn')
 
         svn_rsh = None
         if proto == "svn+ssh" and "rsh" in ud.parm:
@@ -168,7 +163,7 @@ class Svn(Fetch):
                 pass
             raise t, v, tb
 
-    def suppports_srcrev(self):
+    def supports_srcrev(self):
         return True
 
     def _revision_key(self, url, ud, d):

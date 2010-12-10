@@ -25,22 +25,40 @@ import sys
 import itertools
 import xmlrpclib
 import logging
+import progressbar
+import bb.msg
 from bb import ui
 from bb.ui import uihelper
 
 logger = logging.getLogger("BitBake")
-parsespin = itertools.cycle( r'|/-\\' )
+widgets = [progressbar.Percentage(), ' ', progressbar.Bar(), ' ',
+           progressbar.ETA()]
 
-class BBLogFormatter(logging.Formatter):
-    """Formatter which ensures that our 'plain' messages (logging.INFO + 1) are used as is"""
+class BBProgress(progressbar.ProgressBar):
+    def __init__(self, msg, maxval):
+        self.msg = msg
+        progressbar.ProgressBar.__init__(self, maxval, [self.msg + ": "] + widgets)
 
-    def format(self, record):
-        if record.levelno == logging.INFO + 1:
-            return record.getMessage()
-        else:
-            return logging.Formatter.format(self, record)
+class NonInteractiveProgress(object):
+    fobj = sys.stdout
 
-def init(server, eventHandler):
+    def __init__(self, msg, maxval):
+        self.msg = msg
+        self.maxval = maxval
+
+    def start(self):
+        self.fobj.write("%s..." % self.msg)
+        self.fobj.flush()
+        return self
+
+    def update(self, value):
+        pass
+
+    def finish(self):
+        self.fobj.write("done.\n")
+        self.fobj.flush()
+
+def main(server, eventHandler):
 
     # Get values of variables which control our output
     includelogs = server.runCommand(["getVariable", "BBINCLUDELOGS"])
@@ -59,7 +77,7 @@ def init(server, eventHandler):
         logging.addLevelName(level, logging.getLevelName(logging.DEBUG))
 
     console = logging.StreamHandler(sys.stdout)
-    format = BBLogFormatter("%(levelname)s: %(message)s")
+    format = bb.msg.BBLogFormatter("%(levelname)s: %(message)s")
     console.setFormatter(format)
     logger.addHandler(console)
 
@@ -75,6 +93,8 @@ def init(server, eventHandler):
         print("XMLRPC Fault getting commandline:\n %s" % x)
         return 1
 
+    parseprogress = None
+    interactive = os.isatty(sys.stdout.fileno())
     shutdown = 0
     return_value = 0
     while True:
@@ -90,10 +110,8 @@ def init(server, eventHandler):
                 activetasks, failedtasks = helper.getTasks()
                 if activetasks:
                     print("Waiting for %s active tasks to finish:" % len(activetasks))
-                    tasknum = 1
-                    for task in activetasks:
+                    for tasknum, task in enumerate(activetasks):
                         print("%s: %s (pid %s)" % (tasknum, activetasks[task]["title"], task))
-                        tasknum = tasknum + 1
 
             if isinstance(event, logging.LogRecord):
                 logger.handle(event)
@@ -126,22 +144,20 @@ def init(server, eventHandler):
             if isinstance(event, bb.build.TaskBase):
                 logger.info(event._message)
                 continue
-            if isinstance(event, bb.event.ParseProgress):
-                x = event.sofar
-                y = event.total
-                if os.isatty(sys.stdout.fileno()):
-                    sys.stdout.write("\rNOTE: Handling BitBake files: %s (%04d/%04d) [%2d %%]" % ( next(parsespin), x, y, x*100//y ) )
-                    sys.stdout.flush()
+            if isinstance(event, bb.event.ParseStarted):
+                if interactive:
+                    progress = BBProgress
                 else:
-                    if x == 1:
-                        sys.stdout.write("Parsing .bb files, please wait...")
-                        sys.stdout.flush()
-                    if x == y:
-                        sys.stdout.write("done.")
-                        sys.stdout.flush()
-                if x == y:
-                    print(("\nParsing of %d .bb files complete (%d cached, %d parsed). %d targets, %d skipped, %d masked, %d errors."
-                        % ( event.total, event.cached, event.parsed, event.virtuals, event.skipped, event.masked, event.errors)))
+                    progress = NonInteractiveProgress
+                parseprogress = progress("Parsing recipes", event.total).start()
+                continue
+            if isinstance(event, bb.event.ParseProgress):
+                parseprogress.update(event.current)
+                continue
+            if isinstance(event, bb.event.ParseCompleted):
+                parseprogress.finish()
+                print(("Parsing of %d .bb files complete (%d cached, %d parsed). %d targets, %d skipped, %d masked, %d errors."
+                    % ( event.total, event.cached, event.parsed, event.virtuals, event.skipped, event.masked, event.errors)))
                 continue
 
             if isinstance(event, bb.command.CookerCommandCompleted):

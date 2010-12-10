@@ -113,8 +113,7 @@ class Perforce(Fetch):
         if which != -1:
             base = path[:which]
 
-        if base[0] == "/":
-            base = base[1:]
+        base = self._strip_leading_slashes(base)
 
         cset = Perforce.getcset(d, path, host, user, pswd, parm)
 
@@ -134,10 +133,7 @@ class Perforce(Fetch):
         else:
             path = depot
 
-        if "module" in parm:
-            module = parm["module"]
-        else:
-            module = os.path.basename(path)
+        module = parm.get('module', os.path.basename(path))
 
         localdata = data.createCopy(d)
         data.setVar('OVERRIDES', "p4:%s" % data.getVar('OVERRIDES', localdata), localdata)
@@ -207,4 +203,4 @@ class Perforce(Fetch):
                 pass
             raise FetchError(module)
         # cleanup
-        os.system('rm -rf %s' % tmpfile)
+        bb.utils.prunedir(tmpfile)
